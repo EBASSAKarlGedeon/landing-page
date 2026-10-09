@@ -95,9 +95,21 @@ async function mapLimited(items, limit, fn) {
     return results;
 }
 
+// Characters array isn't populated until ST emits character_page_loaded.
+// Poll briefly instead of guessing at timing.
+async function waitForCharacters(timeoutMs = 20000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const chars = getContext().characters;
+        if (Array.isArray(chars) && chars.length > 0) return chars;
+        await new Promise(r => setTimeout(r, 250));
+    }
+    console.warn(`[${extensionName}] Timed out waiting for characters list`);
+    return getContext().characters || [];
+}
+
 async function loadAllChatData() {
-    const ctx = getContext();
-    const characters = ctx.characters || [];
+    const characters = await waitForCharacters();
     console.log(`[${extensionName}] Fetching chat lists for ${characters.length} characters...`);
 
     const lists = await mapLimited(characters, 4, (c) => fetchChatListForCharacter(c.avatar));
@@ -352,7 +364,13 @@ jQuery(async () => {
         loadSettings();
 
         eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-
+        // Character list loads after we do — refresh when it's ready
+        if (event_types.CHARACTER_PAGE_LOADED) {
+            eventSource.on(event_types.CHARACTER_PAGE_LOADED, () => {
+                invalidateChatData();
+                updateLanding();
+            });
+        }
         if (event_types.APP_READY) {
             eventSource.on(event_types.APP_READY, () => setTimeout(updateLanding, 100));
         }
