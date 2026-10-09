@@ -13,7 +13,7 @@ const defaultSettings = {
 
 let landingRoot = null;
 let manuallyExited = false;
-let chatListCache = new Map(); // avatar -> [{file_name, last_modify, file_size, chat_items}]
+let chatListCache = new Map(); // avatar -> [{file_name, chat_items, ...}]
 let chatDataPromise = null;
 
 // ---------- Settings ----------
@@ -63,9 +63,13 @@ function getStBackground() {
 // ---------- Chat list data (Stage 5) ----------
 
 function normalizeTimestamp(ts) {
-    // Handle both seconds and milliseconds from the endpoint
+    // Handle both seconds and milliseconds
     const n = Number(ts);
     return n < 1e12 ? n * 1000 : n;
+}
+
+function chatKey(scope, fileName) {
+    return `${scope}::${String(fileName ?? "").replace(/\.jsonl?$/i, "")}`;
 }
 
 async function fetchChatListForCharacter(avatar) {
@@ -79,6 +83,41 @@ async function fetchChatListForCharacter(avatar) {
     if (!response.ok) throw new Error(`characters/chats ${response.status} for ${avatar}`);
     const data = await response.json();
     return Array.isArray(data) ? data : [];
+}
+
+// One request for the whole library: chat file -> last-modified time.
+// This is the "last activity" clock (mtime changes when a message is
+// sent/edited/swiped). Returns null if the endpoint doesn't exist
+// (older ST builds) so we can fall back gracefully.
+async function fetchRecentChatIndex() {
+    try {
+        const response = await fetch("/api/chats/recent", {
+            method: "POST",
+            headers: getContext().getRequestHeaders(),
+            body: JSON.stringify({ max: 200 })
+        });
+        if (!response.ok) {
+            console.warn(`[${extensionName}] /api/chats/recent returned ${response.status} — falling back to filename dates`);
+            return null;
+        }
+        const data = await response.json();
+        if (!Array.isArray(data)) return null;
+        const map = new Map();
+        for (const item of data) {
+            const avatar = item.pngFile ?? item.avatar ?? null;
+            const group = item.groupId ?? item.group ?? null;
+            const fileName = item.filePath ?? item.file_name ?? null;
+            if (!fileName) continue;
+            const scope = group ? `group:${group}` : `char:${avatar}`;
+            const ts = Number(item.mtime ?? item.last_modify ?? 0);
+            map.set(chatKey(scope, fileName), ts > 0 ? normalizeTimestamp(ts) : 0);
+        }
+        console.log(`[${extensionName}] Recent chat index: ${map.size} entries`, data[0] ? data[0] : "");
+        return map;
+    } catch (err) {
+        console.warn(`[${extensionName}] /api/chats/recent unavailable:`, err.message);
+        return null;
+    }
 }
 
 // Simple concurrency limiter so we don't fire hundreds of requests at once
@@ -99,7 +138,6 @@ async function mapLimited(items, limit, fn) {
 }
 
 // Characters array isn't populated until ST emits character_page_loaded.
-// Poll briefly instead of guessing at timing.
 async function waitForCharacters(timeoutMs = 20000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -111,11 +149,21 @@ async function waitForCharacters(timeoutMs = 20000) {
     return getContext().characters || [];
 }
 
+// Fallback clock: creation date embedded in ST chat file names
+function filenameTimestamp(chat) {
+    const m = String(chat.file_name ?? "").match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]).getTime();
+    return 0;
+}
+
 async function loadAllChatData() {
     const characters = await waitForCharacters();
     console.log(`[${extensionName}] Fetching chat lists for ${characters.length} characters...`);
 
     const lists = await mapLimited(characters, 4, (c) => fetchChatListForCharacter(c.avatar));
+
+    // One extra request: the real "last activity" timestamps for the whole library
+    const recentIndex = await fetchRecentChatIndex();
 
     chatListCache = new Map();
     const allChats = [];
@@ -123,22 +171,22 @@ async function loadAllChatData() {
         const chats = Array.isArray(lists[i]) ? lists[i] : [];
         chatListCache.set(c.avatar, chats);
         for (const chat of chats) {
+            // Priority: /api/chats/recent mtime > last_modify from list > filename date
+            let ts = 0;
+            if (recentIndex) ts = recentIndex.get(chatKey(`char:${c.avatar}`, chat.file_name)) || 0;
+            if (!ts && chat.last_modify && Number(chat.last_modify) > 0) ts = normalizeTimestamp(chat.last_modify);
+            if (!ts) ts = filenameTimestamp(chat);
             allChats.push({
                 character: c,
                 characterIndex: i,
-                chat
+                chat,
+                ts
             });
         }
     });
 
-    // One-time debug: verify the response actually contains timestamps.
-    // Delete this block once confirmed working.
-    if (allChats.length > 0) {
-        console.debug(`[${extensionName}] Sample chat object:`, allChats[0].chat);
-    }
-
-    // Sort most recent -> oldest (uses timestamp + filename fallback)
-    allChats.sort((a, b) => chatTimestamp(b.chat) - chatTimestamp(a.chat));
+    // Sort most recent -> oldest
+    allChats.sort((a, b) => b.ts - a.ts);
     console.log(`[${extensionName}] Found ${allChats.length} total chats`);
     return allChats;
 }
@@ -156,16 +204,8 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function chatTimestamp(chat) {
-    if (chat.last_modify && Number(chat.last_modify) > 0) return normalizeTimestamp(chat.last_modify);
-    // Fallback: parse date embedded in the chat file name
-    const m = String(chat.file_name ?? "").match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
-    if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]).getTime();
-    return 0;
-}
-
 function timeAgo(ts) {
-    const then = normalizeTimestamp(ts);
+    const then = Number(ts);
     if (!Number.isFinite(then) || then <= 0) return "—";
     const diff = Date.now() - then;
     const mins = Math.floor(diff / 60000);
@@ -185,11 +225,10 @@ function prettyChatName(fileName) {
     return String(fileName ?? "").replace(/\.jsonl?$/i, "");
 }
 
-// Plain-text snippet of a character's description for the chat card
 function descriptionSnippet(character) {
     const raw = String(character.description || character.creator_notes || "")
-        .replace(/[*#`>]+/g, "")   // strip common markdown symbols
-        .replace(/\s+/g, " ")       // collapse whitespace/newlines
+        .replace(/[*#`>]+/g, "")
+        .replace(/\s+/g, " ")
         .trim();
     return raw || "No description available.";
 }
@@ -197,10 +236,9 @@ function descriptionSnippet(character) {
 // ---------- My Chats rendering (Stage 5) ----------
 
 function renderChatCard(entry) {
-    const { character, characterIndex, chat } = entry;
+    const { character, characterIndex, chat, ts } = entry;
     const avatarUrl = getContext().getThumbnailUrl("avatar", character.avatar);
     const msgCount = chat.chat_items ?? 0;
-    const ts = chatTimestamp(chat);
 
     const card = document.createElement("div");
     card.className = "stlp-chat-card";
@@ -240,8 +278,6 @@ function renderChatCard(entry) {
 async function openChatFile(characterIndex, characterName, chatFileName) {
     console.log(`[${extensionName}] Opening chat: ${characterName} / ${chatFileName}`);
     try {
-        // Dynamic import so a missing export degrades gracefully instead of
-        // breaking the whole extension at load time
         const scriptModule = await import("../../../../script.js");
         if (typeof scriptModule.selectCharacterById !== "function") {
             throw new Error("selectCharacterById is not exported in this ST version");
@@ -353,7 +389,6 @@ function showLanding() {
 
     $("#sheld").hide();
 
-    // Render My Chats
     const chatsContainer = landingRoot.querySelector("#stlp_my_chats");
     renderMyChats(chatsContainer);
 
@@ -389,7 +424,6 @@ function onChatChanged() {
     if (isChatOpen()) {
         manuallyExited = false;
     }
-    // Chat data may have changed — invalidate cache so next landing view is fresh
     invalidateChatData();
     updateLanding();
 }
@@ -406,7 +440,6 @@ jQuery(async () => {
         loadSettings();
 
         eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-        // Character list loads after we do — refresh when it's ready
         if (event_types.CHARACTER_PAGE_LOADED) {
             eventSource.on(event_types.CHARACTER_PAGE_LOADED, () => {
                 invalidateChatData();
