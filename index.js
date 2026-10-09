@@ -7,11 +7,14 @@ const extensionName = "landing-page";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 const defaultSettings = {
-    enabled: true
+    enabled: true,
+    chatsShown: 8
 };
 
 let landingRoot = null;
 let manuallyExited = false;
+let chatListCache = new Map(); // avatar -> [{file_name, last_modify, file_size, chat_items}]
+let chatDataPromise = null;
 
 // ---------- Settings ----------
 
@@ -47,8 +50,6 @@ function isChatOpen() {
 // ---------- ST background ----------
 
 function getStBackground() {
-    // ST renders its background on #bg1/#bg2 (crossfade layers).
-    // Read the computed background-image from whichever is active.
     for (const id of ["bg1", "bg2"]) {
         const el = document.getElementById(id);
         if (el) {
@@ -57,6 +58,181 @@ function getStBackground() {
         }
     }
     return null;
+}
+
+// ---------- Chat list data (Stage 5) ----------
+
+function normalizeTimestamp(ts) {
+    // Handle both seconds and milliseconds from the endpoint
+    const n = Number(ts);
+    return n < 1e12 ? n * 1000 : n;
+}
+
+async function fetchChatListForCharacter(avatar) {
+    const response = await fetch("/api/chats/getchatlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ch_name: avatar })
+    });
+    if (!response.ok) throw new Error(`getchatlist ${response.status} for ${avatar}`);
+    return response.json();
+}
+
+// Simple concurrency limiter so we don't fire hundreds of requests at once
+async function mapLimited(items, limit, fn) {
+    const results = new Array(items.length);
+    let next = 0;
+    async function worker() {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i]).catch((err) => {
+                console.warn(`[${extensionName}] chat list failed:`, err.message);
+                return [];
+            });
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
+}
+
+async function loadAllChatData() {
+    const ctx = getContext();
+    const characters = ctx.characters || [];
+    console.log(`[${extensionName}] Fetching chat lists for ${characters.length} characters...`);
+
+    const lists = await mapLimited(characters, 4, (c) => fetchChatListForCharacter(c.avatar));
+
+    chatListCache = new Map();
+    const allChats = [];
+    characters.forEach((c, i) => {
+        const chats = Array.isArray(lists[i]) ? lists[i] : [];
+        chatListCache.set(c.avatar, chats);
+        for (const chat of chats) {
+            allChats.push({
+                character: c,
+                characterIndex: i,
+                chat
+            });
+        }
+    });
+
+    // Sort most recent -> oldest
+    allChats.sort((a, b) => normalizeTimestamp(b.chat.last_modify) - normalizeTimestamp(a.chat.last_modify));
+    console.log(`[${extensionName}] Found ${allChats.length} total chats`);
+    return allChats;
+}
+
+function invalidateChatData() {
+    chatListCache = new Map();
+    chatDataPromise = null;
+}
+
+// ---------- Helpers ----------
+
+function escapeHtml(str) {
+    return String(str ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function timeAgo(ts) {
+    const then = normalizeTimestamp(ts);
+    const diff = Date.now() - then;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+    const years = Math.floor(months / 12);
+    return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+function prettyChatName(fileName) {
+    return String(fileName ?? "").replace(/\.jsonl?$/i, "");
+}
+
+// ---------- My Chats rendering (Stage 5) ----------
+
+function renderChatCard(entry) {
+    const { character, characterIndex, chat } = entry;
+    const avatarUrl = `/thumbnail?type=character&file=${encodeURIComponent(character.avatar)}`;
+    const msgCount = chat.chat_items ?? 0;
+    const card = document.createElement("div");
+    card.className = "stlp-chat-card";
+    card.innerHTML = `
+        <div class="stlp-chat-avatar-wrap">
+            <img class="stlp-chat-avatar" src="${avatarUrl}" alt="" loading="lazy"
+                 onerror="this.style.visibility='hidden'" />
+        </div>
+        <div class="stlp-chat-body">
+            <div class="stlp-chat-name">${escapeHtml(character.name)}</div>
+            <div class="stlp-chat-file">${escapeHtml(prettyChatName(chat.file_name))}</div>
+            <div class="stlp-chat-meta">
+                <span>${timeAgo(chat.last_modify)}</span>
+                <span class="stlp-chat-meta-dot">•</span>
+                <span>${msgCount} message${msgCount === 1 ? "" : "s"}</span>
+            </div>
+        </div>
+        <button class="stlp-chat-continue">Continue</button>
+    `;
+    card.addEventListener("click", () => openChatFile(characterIndex, character.name, chat.file_name));
+    return card;
+}
+
+async function openChatFile(characterIndex, characterName, chatFileName) {
+    console.log(`[${extensionName}] Opening chat: ${characterName} / ${chatFileName}`);
+    try {
+        // Dynamic import so a missing export degrades gracefully instead of
+        // breaking the whole extension at load time
+        const scriptModule = await import("../../../../script.js");
+        if (typeof scriptModule.selectCharacterById !== "function") {
+            throw new Error("selectCharacterById is not exported in this ST version");
+        }
+        await scriptModule.selectCharacterById(characterIndex, characterName, chatFileName);
+    } catch (err) {
+        console.error(`[${extensionName}] Failed to open chat:`, err);
+        toastr.error(`Could not open chat: ${err.message}`, "Landing Page");
+    }
+}
+
+async function renderMyChats(container) {
+    const settings = extension_settings[extensionName];
+    const limit = settings.chatsShown ?? 8;
+
+    container.innerHTML = `<div class="stlp-placeholder">Loading chats…</div>`;
+
+    let allChats;
+    try {
+        if (!chatDataPromise) {
+            chatDataPromise = loadAllChatData();
+        }
+        allChats = await chatDataPromise;
+    } catch (err) {
+        console.error(`[${extensionName}] Chat data load failed:`, err);
+        container.innerHTML = `<div class="stlp-placeholder">Failed to load chats — check console (F12).</div>`;
+        return;
+    }
+
+    if (allChats.length === 0) {
+        container.innerHTML = `<div class="stlp-placeholder">No chats yet — start one from the Characters section below (coming in Stage 6).</div>`;
+        return;
+    }
+
+    container.innerHTML = "";
+    const shown = allChats.slice(0, limit);
+    for (const entry of shown) {
+        container.appendChild(renderChatCard(entry));
+    }
+    if (allChats.length > limit) {
+        const more = document.createElement("div");
+        more.className = "stlp-chat-more";
+        more.textContent = `View all (${allChats.length}) — arrives in a later stage`;
+        container.appendChild(more);
+    }
 }
 
 // ---------- Landing page ----------
@@ -84,7 +260,7 @@ function buildLanding() {
             <main class="stlp-content">
                 <section class="stlp-section">
                     <h2 class="stlp-section-title">My Chats</h2>
-                    <div class="stlp-placeholder">Chat list arrives in Stage 5.</div>
+                    <div id="stlp_my_chats" class="stlp-chat-list"></div>
                 </section>
                 <section class="stlp-section">
                     <h2 class="stlp-section-title">Characters</h2>
@@ -94,7 +270,6 @@ function buildLanding() {
         </div>
     `;
 
-    // Wire top bar
     el.querySelector("#stlp_exit_btn").addEventListener("click", () => {
         console.log(`[${extensionName}] Manual exit`);
         hideLanding(true);
@@ -102,8 +277,6 @@ function buildLanding() {
     el.querySelector("#stlp_settings_btn").addEventListener("click", () => {
         toastr.info("Landing page settings will open here in a later stage.", "Landing Page");
     });
-
-    // Ctrl+K focuses search
     el.querySelector("#stlp_search").addEventListener("keydown", (e) => {
         if (e.key === "Escape") e.target.blur();
     });
@@ -119,19 +292,17 @@ function showLanding() {
     landingRoot = buildLanding();
     document.body.appendChild(landingRoot);
 
-    // Apply ST's background if we can find it
     const bg = getStBackground();
     if (bg) {
         landingRoot.style.backgroundImage = bg;
-        landingRoot.classList.add("stlp-has-bg");
-        console.log(`[${extensionName}] Using SillyTavern background`);
-    } else {
-        console.log(`[${extensionName}] ST background not found, using solid color`);
     }
 
     $("#sheld").hide();
 
-    // Global Ctrl+K while landing is visible
+    // Render My Chats
+    const chatsContainer = landingRoot.querySelector("#stlp_my_chats");
+    renderMyChats(chatsContainer);
+
     document.addEventListener("keydown", onCtrlK);
 }
 
@@ -162,8 +333,10 @@ function updateLanding() {
 
 function onChatChanged() {
     if (isChatOpen()) {
-        manuallyExited = false; // a chat was opened — re-arm landing for next time
+        manuallyExited = false;
     }
+    // Chat data may have changed — invalidate cache so next landing view is fresh
+    invalidateChatData();
     updateLanding();
 }
 
@@ -178,10 +351,8 @@ jQuery(async () => {
         $("#landing_page_enabled").on("input", onEnabledChange);
         loadSettings();
 
-        // Core lifecycle: show landing when no chat, restore when a chat opens
         eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
 
-        // Initial check (in case CHAT_CHANGED fired before we loaded)
         if (event_types.APP_READY) {
             eventSource.on(event_types.APP_READY, () => setTimeout(updateLanding, 100));
         }
