@@ -69,13 +69,16 @@ function normalizeTimestamp(ts) {
 }
 
 async function fetchChatListForCharacter(avatar) {
-    const response = await fetch("/api/chats/getchatlist", {
+    const response = await fetch("/api/characters/chats", {
         method: "POST",
         headers: getContext().getRequestHeaders(),
-        body: JSON.stringify({ ch_name: avatar })
+        body: JSON.stringify({ avatar_url: avatar })
     });
-    if (!response.ok) throw new Error(`getchatlist ${response.status} for ${avatar}`);
-    return response.json();
+    // 404 = character has no chat directory yet → zero chats, not an error
+    if (response.status === 404) return [];
+    if (!response.ok) throw new Error(`characters/chats ${response.status} for ${avatar}`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
 }
 
 // Simple concurrency limiter so we don't fire hundreds of requests at once
