@@ -165,35 +165,76 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
-/* ============ My Chats (Stage 5) ============ */
+/* ============ My Chats — JAI-style horizontal carousel (Stage 5) ============ */
 #landing_page_root .stlp-chat-list {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    align-items: stretch;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 2px 12px;
+    scroll-snap-type: x mandatory;
+}
+
+#landing_page_root .stlp-chat-list::-webkit-scrollbar {
+    height: 8px;
+}
+
+#landing_page_root .stlp-chat-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+}
+
+#landing_page_root .stlp-chat-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 #landing_page_root .stlp-chat-card {
+    flex: 0 0 340px;
+    scroll-snap-align: start;
     display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
+    flex-direction: column;
     border: 1px solid var(--stlp-border);
     border-radius: 12px;
     background: var(--stlp-card);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    overflow: hidden;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 #landing_page_root .stlp-chat-card:hover {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Card header: character name */
+#landing_page_root .stlp-chat-header {
+    padding: 12px 14px 8px;
+}
+
+#landing_page_root .stlp-chat-name {
+    font-weight: 700;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Content row: avatar + description snippet */
+#landing_page_root .stlp-chat-content-row {
+    display: flex;
+    gap: 12px;
+    padding: 0 14px;
+    flex: 1;
+    min-height: 0;
 }
 
 #landing_page_root .stlp-chat-avatar-wrap {
     flex-shrink: 0;
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid var(--stlp-border);
@@ -207,48 +248,73 @@
     display: block;
 }
 
-#landing_page_root .stlp-chat-body {
+#landing_page_root .stlp-chat-desc-wrap {
+    position: relative;
     flex: 1;
     min-width: 0;
 }
 
-#landing_page_root .stlp-chat-name {
-    font-weight: 700;
-    font-size: 1rem;
-    white-space: nowrap;
+#landing_page_root .stlp-chat-desc {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    opacity: 0.75;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
 }
 
-#landing_page_root .stlp-chat-file {
-    font-size: 0.85rem;
-    opacity: 0.55;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-top: 2px;
+/* JAI-style fade at the bottom of the description */
+#landing_page_root .stlp-chat-desc-fade {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 18px;
+    background: linear-gradient(180deg, transparent, rgba(22, 24, 29, 0.85));
+    pointer-events: none;
 }
 
-#landing_page_root .stlp-chat-meta {
+/* Card footer: stats + Continue */
+#landing_page_root .stlp-chat-footer {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    opacity: 0.6;
-    margin-top: 6px;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px 12px;
+    margin-top: 8px;
 }
 
-#landing_page_root .stlp-chat-meta-dot {
-    opacity: 0.5;
+#landing_page_root .stlp-chat-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+#landing_page_root .stlp-chat-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    opacity: 0.6;
+    white-space: nowrap;
+}
+
+#landing_page_root .stlp-chat-stat svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
 #landing_page_root .stlp-chat-continue {
     flex-shrink: 0;
-    padding: 8px 18px;
+    padding: 7px 16px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #fff;
     background: linear-gradient(90deg, #ff5d6e, #d92c42);
@@ -260,11 +326,14 @@
     box-shadow: 0 0 14px rgba(255, 77, 94, 0.4);
 }
 
+/* "View all" chip inside the carousel */
 #landing_page_root .stlp-chat-more {
-    padding: 12px;
-    text-align: center;
+    flex: 0 0 auto;
+    align-self: center;
+    padding: 12px 18px;
     font-size: 0.85rem;
-    opacity: 0.5;
+    opacity: 0.55;
     border: 1px dashed var(--stlp-border);
     border-radius: 10px;
+    white-space: nowrap;
 }

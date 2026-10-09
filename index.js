@@ -72,7 +72,7 @@ async function fetchChatListForCharacter(avatar) {
     const response = await fetch("/api/characters/chats", {
         method: "POST",
         headers: getContext().getRequestHeaders(),
-        body: JSON.stringify({ avatar_url: avatar })
+        body: JSON.stringify({ avatar_url: avatar, withMetadata: true })
     });
     // 404 = character has no chat directory yet → zero chats, not an error
     if (response.status === 404) return [];
@@ -131,8 +131,14 @@ async function loadAllChatData() {
         }
     });
 
-    // Sort most recent -> oldest
-    allChats.sort((a, b) => normalizeTimestamp(b.chat.last_modify) - normalizeTimestamp(a.chat.last_modify));
+    // One-time debug: verify the response actually contains timestamps.
+    // Delete this block once confirmed working.
+    if (allChats.length > 0) {
+        console.debug(`[${extensionName}] Sample chat object:`, allChats[0].chat);
+    }
+
+    // Sort most recent -> oldest (uses timestamp + filename fallback)
+    allChats.sort((a, b) => chatTimestamp(b.chat) - chatTimestamp(a.chat));
     console.log(`[${extensionName}] Found ${allChats.length} total chats`);
     return allChats;
 }
@@ -150,14 +156,23 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+function chatTimestamp(chat) {
+    if (chat.last_modify && Number(chat.last_modify) > 0) return normalizeTimestamp(chat.last_modify);
+    // Fallback: parse date embedded in the chat file name
+    const m = String(chat.file_name ?? "").match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]).getTime();
+    return 0;
+}
+
 function timeAgo(ts) {
     const then = normalizeTimestamp(ts);
+    if (!Number.isFinite(then) || then <= 0) return "—";
     const diff = Date.now() - then;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
     const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    if (hours < 24) return `about ${hours} hour${hours === 1 ? "" : "s"} ago`;
     const days = Math.floor(hours / 24);
     if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
     const months = Math.floor(days / 30);
@@ -170,29 +185,53 @@ function prettyChatName(fileName) {
     return String(fileName ?? "").replace(/\.jsonl?$/i, "");
 }
 
+// Plain-text snippet of a character's description for the chat card
+function descriptionSnippet(character) {
+    const raw = String(character.description || character.creator_notes || "")
+        .replace(/[*#`>]+/g, "")   // strip common markdown symbols
+        .replace(/\s+/g, " ")       // collapse whitespace/newlines
+        .trim();
+    return raw || "No description available.";
+}
+
 // ---------- My Chats rendering (Stage 5) ----------
 
 function renderChatCard(entry) {
     const { character, characterIndex, chat } = entry;
-    const avatarUrl = `/thumbnail?type=character&file=${encodeURIComponent(character.avatar)}`;
+    const avatarUrl = getContext().getThumbnailUrl("avatar", character.avatar);
     const msgCount = chat.chat_items ?? 0;
+    const ts = chatTimestamp(chat);
+
     const card = document.createElement("div");
     card.className = "stlp-chat-card";
+    card.title = prettyChatName(chat.file_name);
     card.innerHTML = `
-        <div class="stlp-chat-avatar-wrap">
-            <img class="stlp-chat-avatar" src="${avatarUrl}" alt="" loading="lazy"
-                 onerror="this.style.visibility='hidden'" />
-        </div>
-        <div class="stlp-chat-body">
+        <div class="stlp-chat-header">
             <div class="stlp-chat-name">${escapeHtml(character.name)}</div>
-            <div class="stlp-chat-file">${escapeHtml(prettyChatName(chat.file_name))}</div>
-            <div class="stlp-chat-meta">
-                <span>${timeAgo(chat.last_modify)}</span>
-                <span class="stlp-chat-meta-dot">•</span>
-                <span>${msgCount} message${msgCount === 1 ? "" : "s"}</span>
+        </div>
+        <div class="stlp-chat-content-row">
+            <div class="stlp-chat-avatar-wrap">
+                <img class="stlp-chat-avatar" src="${avatarUrl}" alt="" loading="lazy"
+                     onerror="this.style.visibility='hidden'" />
+            </div>
+            <div class="stlp-chat-desc-wrap">
+                <div class="stlp-chat-desc">${escapeHtml(descriptionSnippet(character))}</div>
+                <div class="stlp-chat-desc-fade"></div>
             </div>
         </div>
-        <button class="stlp-chat-continue">Continue</button>
+        <div class="stlp-chat-footer">
+            <div class="stlp-chat-stats">
+                <span class="stlp-chat-stat">
+                    <svg stroke="currentColor" fill="none" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <span>${timeAgo(ts)}</span>
+                </span>
+                <span class="stlp-chat-stat">
+                    <svg stroke="currentColor" fill="none" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"/></svg>
+                    <span>${msgCount} message${msgCount === 1 ? "" : "s"}</span>
+                </span>
+            </div>
+            <button class="stlp-chat-continue">Continue</button>
+        </div>
     `;
     card.addEventListener("click", () => openChatFile(characterIndex, character.name, chat.file_name));
     return card;
