@@ -6,6 +6,25 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "landing-page";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
+const defaultSettings = {
+    enabled: true
+};
+
+async function loadSettings() {
+    extension_settings[extensionName] = extension_settings[extensionName] || {};
+    if (Object.keys(extension_settings[extensionName]).length === 0) {
+        Object.assign(extension_settings[extensionName], defaultSettings);
+    }
+    $("#landing_page_enabled").prop("checked", extension_settings[extensionName].enabled);
+}
+
+function onEnabledChange(event) {
+    const value = Boolean($(event.target).prop("checked"));
+    extension_settings[extensionName].enabled = value;
+    saveSettingsDebounced();
+    console.log(`[${extensionName}] Setting saved:`, value);
+}
+
 // Extension initialization
 jQuery(async () => {
     console.log(`[${extensionName}] Loading...`);
@@ -16,6 +35,12 @@ jQuery(async () => {
 
         // Append to settings panel (right column for UI extensions)
         $("#extensions_settings2").append(settingsHtml);
+
+        // Bind checkbox event
+        $("#landing_page_enabled").on("input", onEnabledChange);
+
+        // Load saved settings
+        loadSettings();
 
         console.log(`[${extensionName}] ✅ Loaded successfully`);
     } catch (error) {
