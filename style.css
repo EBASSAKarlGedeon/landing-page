@@ -1,1 +1,59 @@
-/* Empty for now - landing page styles come later */
+/* ============ Landing Page — design tokens (red theme) ============ */
+#landing_page_root {
+    --stlp-accent: #ff4d5e;
+    --stlp-accent-hover: #ff6b78;
+    --stlp-accent-dim: #b83240;
+    --stlp-bg: #16181d;
+    --stlp-text: #ffffff;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--stlp-bg);
+    color: var(--stlp-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mainFontFamily, sans-serif);
+}
+
+.stlp-shell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+}
+
+.stlp-title {
+    margin: 0;
+    font-size: 2.5rem;
+    background: linear-gradient(90deg, var(--stlp-accent), var(--stlp-accent-hover));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.stlp-sub {
+    margin: 0;
+    opacity: 0.6;
+    max-width: 480px;
+}
+
+.stlp-btn {
+    margin-top: 16px;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #ff5d6e, #d92c42);
+    transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stlp-btn:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 18px rgba(255, 77, 94, 0.45);
+}
