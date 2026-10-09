@@ -71,7 +71,7 @@ function normalizeTimestamp(ts) {
 async function fetchChatListForCharacter(avatar) {
     const response = await fetch("/api/chats/getchatlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getContext().getRequestHeaders(),
         body: JSON.stringify({ ch_name: avatar })
     });
     if (!response.ok) throw new Error(`getchatlist ${response.status} for ${avatar}`);
