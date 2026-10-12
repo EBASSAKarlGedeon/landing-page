@@ -464,9 +464,10 @@ function showAllChatsModal() {
 
     (async () => {
         try {
-            const allChats = chatDataPromise
-                ? await chatDataPromise
-                : (chatDataPromise = loadAllChatData());
+            if (!chatDataPromise) {
+                chatDataPromise = loadAllChatData();
+            }
+            const allChats = await chatDataPromise;
             renderList(allChats, allChats.length);
             searchInput.addEventListener("input", () => {
                 const q = searchInput.value.trim();
