@@ -1,0 +1,4 @@
+.filtered-welcome-chats-settings .fwc-hidden,
+#chat .recentChat.fwc-hidden {
+    display: none !important;
+}
