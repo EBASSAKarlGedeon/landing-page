@@ -94,10 +94,10 @@ async function fetchRecentChatIndex() {
         const response = await fetch("/api/chats/recent", {
             method: "POST",
             headers: getContext().getRequestHeaders(),
-            body: JSON.stringify({ max: 200 })
+            body: JSON.stringify({ max: 500 })
         });
         if (!response.ok) {
-            console.warn(`[${extensionName}] /api/chats/recent returned ${response.status} — falling back to filename dates`);
+            console.warn(`[${extensionName}] /api/chats/recent returned ${response.status} — falling back`);
             return null;
         }
         const data = await response.json();
@@ -106,13 +106,17 @@ async function fetchRecentChatIndex() {
         for (const item of data) {
             const avatar = item.pngFile ?? item.avatar ?? null;
             const group = item.groupId ?? item.group ?? null;
-            const fileName = item.filePath ?? item.file_name ?? null;
+            // KEY FIX: server may return a full path — keep only the file name
+            // so keys match the bare file_name values from /api/characters/chats.
+            const fileName = String(item.filePath ?? item.file_name ?? "").split(/[\\/]/).pop();
             if (!fileName) continue;
             const scope = group ? `group:${group}` : `char:${avatar}`;
             const ts = Number(item.mtime ?? item.last_modify ?? 0);
             map.set(chatKey(scope, fileName), ts > 0 ? normalizeTimestamp(ts) : 0);
         }
-        console.log(`[${extensionName}] Recent chat index: ${map.size} entries`, data[0] ? data[0] : "");
+        // Debug: real keys + raw sample so any mismatch is visible at a glance
+        console.log(`[${extensionName}] Recent index: ${map.size} entries. Sample keys:`,
+            [...map.keys()].slice(0, 3), "Raw sample:", data[0] ?? null);
         return map;
     } catch (err) {
         console.warn(`[${extensionName}] /api/chats/recent unavailable:`, err.message);
@@ -162,32 +166,39 @@ async function loadAllChatData() {
 
     const lists = await mapLimited(characters, 4, (c) => fetchChatListForCharacter(c.avatar));
 
-    // One extra request: the real "last activity" timestamps for the whole library
     const recentIndex = await fetchRecentChatIndex();
 
     chatListCache = new Map();
     const allChats = [];
+
     characters.forEach((c, i) => {
         const chats = Array.isArray(lists[i]) ? lists[i] : [];
         chatListCache.set(c.avatar, chats);
+
         for (const chat of chats) {
-            // Priority: /api/chats/recent mtime > last_modify from list > filename date
             let ts = 0;
-            if (recentIndex) ts = recentIndex.get(chatKey(`char:${c.avatar}`, chat.file_name)) || 0;
+            const key = chatKey(`char:${c.avatar}`, chat.file_name);
+
+            // 1. /api/chats/recent mtime = true last activity (matches native tab)
+            if (recentIndex && recentIndex.has(key)) ts = recentIndex.get(key);
+            // 2. the character chat list's own last_modify
             if (!ts && chat.last_modify && Number(chat.last_modify) > 0) ts = normalizeTimestamp(chat.last_modify);
+            // 3. last resort only: creation date embedded in the file name
             if (!ts) ts = filenameTimestamp(chat);
-            allChats.push({
-                character: c,
-                characterIndex: i,
-                chat,
-                ts
-            });
+
+            allChats.push({ character: c, characterIndex: i, chat, ts: Number(ts) || 0 });
         }
     });
 
-    // Sort most recent -> oldest
     allChats.sort((a, b) => b.ts - a.ts);
-    console.log(`[${extensionName}] Found ${allChats.length} total chats`);
+
+    // Debug: is the top of the list really your most recent activity?
+    console.log(`[${extensionName}] Found ${allChats.length} chats, sorted. Top 3:`,
+        allChats.slice(0, 3).map(e => ({
+            name: e.character.name,
+            file: prettyChatName(e.chat.file_name),
+            resolvedDate: e.ts ? new Date(e.ts).toLocaleString() : "no timestamp",
+        })));
     return allChats;
 }
 
