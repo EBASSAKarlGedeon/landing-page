@@ -6,17 +6,19 @@ import { saveSettingsDebounced, eventSource, event_types } from "../../../../scr
 const extensionName = "landing-page";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
+const RECENT_FETCH_MAX = 200; // how many chats to index from the server
+
 const defaultSettings = {
     enabled: true,
     chatsShown: 8,
-    lastActive: {} // chatKey -> timestamp (local activity stamps, TMC-style)
+    lastActive: {} // chatKey -> timestamp (local "I opened this" stamps)
 };
 
 let landingRoot = null;
 let manuallyExited = false;
-let chatListCache = new Map();
 let chatDataPromise = null;
-let refinedTsCache = new Map(); // chatKey -> last-message send_date (session cache)
+let scriptModulePromise = null;   // cached dynamic import of script.js
+let groupModulePromise = null;    // cached dynamic import of group-chats.js
 
 // ---------- Settings ----------
 
@@ -63,197 +65,25 @@ function getStBackground() {
     return null;
 }
 
-// ---------- Chat list data ----------
+// ---------- Helpers ----------
 
 function normalizeTimestamp(ts) {
     const n = Number(ts);
     return n < 1e12 ? n * 1000 : n;
 }
 
+// Accepts ISO strings ("2026-10-11T22:20:01.201Z"), epoch ms, or epoch s
+function parseTimestamp(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return normalizeTimestamp(n);
+    const parsed = Date.parse(String(value));
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 function chatKey(scope, fileName) {
     return `${scope}::${String(fileName ?? "").replace(/\.jsonl?$/i, "")}`;
 }
-
-async function fetchChatListForCharacter(avatar) {
-    const response = await fetch("/api/characters/chats", {
-        method: "POST",
-        headers: getContext().getRequestHeaders(),
-        body: JSON.stringify({ avatar_url: avatar, withMetadata: true })
-    });
-    if (response.status === 404) return [];
-    if (!response.ok) throw new Error(`characters/chats ${response.status} for ${avatar}`);
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
-}
-
-// Global mtime index (same source as ST's native Recent Chats tab)
-async function fetchRecentChatIndex() {
-    try {
-        const response = await fetch("/api/chats/recent", {
-            method: "POST",
-            headers: getContext().getRequestHeaders(),
-            body: JSON.stringify({ max: 500 })
-        });
-        if (!response.ok) {
-            console.warn(`[${extensionName}] /api/chats/recent returned ${response.status} — using fallbacks`);
-            return null;
-        }
-        const data = await response.json();
-        if (!Array.isArray(data)) return null;
-        const map = new Map();
-        for (const item of data) {
-            const avatar = item.pngFile ?? item.avatar ?? null;
-            const group = item.groupId ?? item.group ?? null;
-            // Normalize full paths down to the bare file name so keys match
-            const fileName = String(item.filePath ?? item.file_name ?? "").split(/[\\/]/).pop();
-            if (!fileName) continue;
-            const scope = group ? `group:${group}` : `char:${avatar}`;
-            const ts = Number(item.mtime ?? item.last_modify ?? 0);
-            map.set(chatKey(scope, fileName), ts > 0 ? normalizeTimestamp(ts) : 0);
-        }
-        console.log(`[${extensionName}] Recent index: ${map.size} entries. Raw sample:`, data[0] ?? null);
-        return map;
-    } catch (err) {
-        console.warn(`[${extensionName}] /api/chats/recent unavailable:`, err.message);
-        return null;
-    }
-}
-
-// Fetch ONE chat file and read the send_date of its last real message.
-// This is the truest "last chatted" clock. Verified endpoint contract from
-// the Timelines extension: body { ch_name, file_name (no .jsonl), avatar_url },
-// response[0] is metadata. Returns 0 if unavailable.
-async function fetchChatLastActivity(avatar, characterName, fileName) {
-    try {
-        const response = await fetch("/api/chats/get", {
-            method: "POST",
-            headers: getContext().getRequestHeaders(),
-            cache: "no-cache",
-            body: JSON.stringify({
-                ch_name: characterName,
-                file_name: String(fileName).replace(/\.jsonl$/, ""),
-                avatar_url: avatar,
-            }),
-        });
-        if (!response.ok) return 0;
-        const messages = await response.json();
-        if (!Array.isArray(messages) || messages.length < 2) return 0;
-        // Walk from the end; skip [0] (metadata) and system messages
-        for (let i = messages.length - 1; i >= 1; i--) {
-            const m = messages[i];
-            if (!m || m.is_system) continue;
-            const d = m.send_date;
-            if (d === undefined || d === null || d === "") continue;
-            const n = Number(d);
-            if (Number.isFinite(n) && n > 0) return normalizeTimestamp(n);
-            const ctx = getContext();
-            if (typeof ctx.timestampToMoment === "function") {
-                const mom = ctx.timestampToMoment(d);
-                if (mom && mom.isValid()) return mom.valueOf();
-            }
-            const parsed = Date.parse(d);
-            if (!Number.isNaN(parsed)) return parsed;
-        }
-        return 0;
-    } catch {
-        return 0;
-    }
-}
-
-// Simple concurrency limiter
-async function mapLimited(items, limit, fn) {
-    const results = new Array(items.length);
-    let next = 0;
-    async function worker() {
-        while (next < items.length) {
-            const i = next++;
-            results[i] = await fn(items[i]).catch(() => null);
-        }
-    }
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-    return results;
-}
-
-async function waitForCharacters(timeoutMs = 20000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        const chars = getContext().characters;
-        if (Array.isArray(chars) && chars.length > 0) return chars;
-        await new Promise(r => setTimeout(r, 250));
-    }
-    console.warn(`[${extensionName}] Timed out waiting for characters list`);
-    return getContext().characters || [];
-}
-
-function filenameTimestamp(chat) {
-    const m = String(chat.file_name ?? "").match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
-    if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]).getTime();
-    return 0;
-}
-
-// Stamp "I was here" when a chat is opened (persisted, TMC-style)
-function stampLocalActivity() {
-    const ctx = getContext();
-    if (!ctx.chatId) return;
-    const avatar = ctx.characters?.[ctx.characterId]?.avatar;
-    if (!avatar) return;
-    const key = chatKey(`char:${avatar}`, ctx.chatId);
-    const now = Date.now();
-    const settings = extension_settings[extensionName];
-    settings.lastActive[key] = now;
-    const keys = Object.keys(settings.lastActive);
-    if (keys.length > 600) {
-        keys.sort((a, b) => settings.lastActive[a] - settings.lastActive[b]);
-        for (let i = 0; i < keys.length - 500; i++) delete settings.lastActive[keys[i]];
-    }
-    saveSettingsDebounced();
-    refinedTsCache.set(key, now);
-}
-
-async function loadAllChatData() {
-    const characters = await waitForCharacters();
-    console.log(`[${extensionName}] Fetching chat lists for ${characters.length} characters...`);
-
-    const lists = await mapLimited(characters, 4, (c) => fetchChatListForCharacter(c.avatar));
-    const recentIndex = await fetchRecentChatIndex();
-    const stamps = extension_settings[extensionName].lastActive || {};
-
-    chatListCache = new Map();
-    const allChats = [];
-
-    characters.forEach((c, i) => {
-        const chats = Array.isArray(lists[i]) ? lists[i] : [];
-        chatListCache.set(c.avatar, chats);
-        for (const chat of chats) {
-            const key = chatKey(`char:${c.avatar}`, chat.file_name);
-            // max(local stamp, refined send_date, recent-index mtime)
-            let ts = Math.max(
-                refinedTsCache.get(key) || 0,
-                stamps[key] || 0,
-                recentIndex?.get(key) || 0,
-            );
-            if (!ts && chat.last_modify && Number(chat.last_modify) > 0) ts = normalizeTimestamp(chat.last_modify);
-            if (!ts) ts = filenameTimestamp(chat);
-            allChats.push({ character: c, characterIndex: i, chat, ts: Number(ts) || 0, key });
-        }
-    });
-
-    allChats.sort((a, b) => b.ts - a.ts);
-    console.log(`[${extensionName}] Found ${allChats.length} chats. Top 3:`,
-        allChats.slice(0, 3).map(e => ({
-            name: e.character.name,
-            date: e.ts ? new Date(e.ts).toLocaleString() : "no timestamp",
-        })));
-    return allChats;
-}
-
-function invalidateChatData() {
-    chatListCache = new Map();
-    chatDataPromise = null;
-    // refinedTsCache intentionally survives — per-file data stays valid
-}
-
-// ---------- Helpers ----------
 
 function escapeHtml(str) {
     return String(str ?? "")
@@ -274,7 +104,8 @@ function timeAgo(ts) {
     if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
     const months = Math.floor(days / 30);
     if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
-    return `${Math.floor(months / 12)} year${Math.floor(months / 12) === 1 ? "" : "s"} ago`;
+    const years = Math.floor(months / 12);
+    return `${years} year${years === 1 ? "" : "s"} ago`;
 }
 
 function prettyChatName(fileName) {
@@ -282,34 +113,219 @@ function prettyChatName(fileName) {
 }
 
 function descriptionSnippet(character) {
-    const raw = String(character.description || character.creator_notes || "")
+    const raw = String(character?.description || character?.creator_notes || "")
         .replace(/[*#`>]+/g, "")
         .replace(/\s+/g, " ")
         .trim();
     return raw || "No description available.";
 }
 
+// Plain-text snippet of the last message (for group cards)
+function messageSnippet(text) {
+    const raw = String(text ?? "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/[*#`>]+/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return raw ? raw.slice(0, 220) + (raw.length > 220 ? "…" : "") : "No messages yet.";
+}
+
+// ---------- Chat data (single request: /api/chats/recent) ----------
+
+async function fetchRecentChats() {
+    try {
+        const response = await fetch("/api/chats/recent", {
+            method: "POST",
+            headers: getContext().getRequestHeaders(),
+            cache: "no-cache",
+            body: JSON.stringify({ max: RECENT_FETCH_MAX })
+        });
+        if (!response.ok) {
+            console.warn(`[${extensionName}] /api/chats/recent returned ${response.status}`);
+            return [];
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.warn(`[${extensionName}] /api/chats/recent unavailable:`, err.message);
+        return [];
+    }
+}
+
+async function waitForCharacters(timeoutMs = 20000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const chars = getContext().characters;
+        if (Array.isArray(chars) && chars.length > 0) return chars;
+        await new Promise(r => setTimeout(r, 250));
+    }
+    console.warn(`[${extensionName}] Timed out waiting for characters list`);
+    return getContext().characters || [];
+}
+
+async function loadAllChatData() {
+    const characters = await waitForCharacters();
+    const groups = getContext().groups || [];
+    const recent = await fetchRecentChats();
+    const stamps = extension_settings[extensionName].lastActive || {};
+
+    const allChats = [];
+    for (const item of recent) {
+        const chatName = prettyChatName(item.file_name ?? item.file_id ?? "");
+        if (!chatName) continue;
+
+        const isGroup = !!item.group;
+        const character = isGroup ? null : characters.find(c => c.avatar === item.avatar);
+        const group = isGroup ? groups.find(g => g.id === item.group) : null;
+        if (isGroup && !group) continue;      // orphaned group chat
+        if (!isGroup && !character) continue; // orphaned character chat
+
+        const key = chatKey(isGroup ? `group:${item.group}` : `char:${item.avatar}`, chatName);
+        // Native ST sorts by last_mes (last message send_date); local stamps override on mere open
+        const ts = Math.max(stamps[key] || 0, parseTimestamp(item.last_mes));
+
+        allChats.push({
+            character,
+            group,
+            characterIndex: character ? characters.indexOf(character) : -1,
+            avatar: isGroup ? null : item.avatar,
+            groupId: isGroup ? item.group : null,
+            chat: {
+                file_name: chatName,
+                chat_items: item.chat_items ?? 0,
+                mes: item.mes ?? "",
+            },
+            ts: Number(ts) || 0,
+            key,
+        });
+    }
+
+    allChats.sort((a, b) => b.ts - a.ts);
+    console.log(`[${extensionName}] ${allChats.length} chats loaded. Top 3:`,
+        allChats.slice(0, 3).map(e => ({
+            name: e.character?.name || e.group?.name,
+            date: e.ts ? new Date(e.ts).toLocaleString() : "no timestamp",
+        })));
+    return allChats;
+}
+
+function invalidateChatData() {
+    chatDataPromise = null;
+}
+
+// ---------- Opening chats (verified sequence from ST's own welcome screen) ----------
+
+function getScriptModule() {
+    if (!scriptModulePromise) scriptModulePromise = import("../../../../script.js");
+    return scriptModulePromise;
+}
+
+function getGroupModule() {
+    if (!groupModulePromise) groupModulePromise = import("../../../group-chats.js");
+    return groupModulePromise;
+}
+
+async function openCharacterChatFile(avatar, chatName) {
+    const ctx = getContext();
+    const scriptModule = await getScriptModule();
+    const characterId = ctx.characters.findIndex(c => c.avatar === avatar);
+    if (characterId === -1) throw new Error(`Character not found for avatar: ${avatar}`);
+
+    await ctx.selectCharacterById(characterId);
+    if (typeof scriptModule.setActiveCharacter === "function") {
+        scriptModule.setActiveCharacter(avatar);
+    }
+    ctx.saveSettingsDebounced();
+    if (ctx.getCurrentChatId() === chatName) {
+        console.debug(`[${extensionName}] Chat ${chatName} is already open.`);
+        return;
+    }
+    await ctx.openCharacterChat(chatName);
+}
+
+async function openGroupChatFile(groupId, chatName) {
+    const ctx = getContext();
+    const scriptModule = await getScriptModule();
+    const groupModule = await getGroupModule();
+    if (typeof groupModule.openGroupById !== "function") {
+        throw new Error("openGroupById is not available in this ST version");
+    }
+
+    await groupModule.openGroupById(groupId);
+    if (typeof scriptModule.setActiveGroup === "function") {
+        scriptModule.setActiveGroup(groupId);
+    }
+    ctx.saveSettingsDebounced();
+    if (ctx.getCurrentChatId() === chatName) return;
+    await ctx.openGroupChat(groupId, chatName);
+}
+
+async function openEntry(entry) {
+    const label = entry.character?.name || entry.group?.name || "chat";
+    console.log(`[${extensionName}] Opening: ${label} / ${entry.chat.file_name}`);
+    try {
+        if (entry.groupId) {
+            await openGroupChatFile(entry.groupId, entry.chat.file_name);
+        } else {
+            await openCharacterChatFile(entry.avatar, entry.chat.file_name);
+        }
+    } catch (err) {
+        console.error(`[${extensionName}] Failed to open chat:`, err);
+        toastr.error(`Could not open chat: ${err.message}`, "Landing Page");
+    }
+}
+
+// Stamp "I was here" when a chat is opened (persisted, pruned)
+function stampLocalActivity() {
+    const ctx = getContext();
+    if (!ctx.chatId) return;
+    let key;
+    if (ctx.groupId) {
+        key = chatKey(`group:${ctx.groupId}`, ctx.chatId);
+    } else {
+        const avatar = ctx.characters?.[ctx.characterId]?.avatar;
+        if (!avatar) return;
+        key = chatKey(`char:${avatar}`, ctx.chatId);
+    }
+    const now = Date.now();
+    const settings = extension_settings[extensionName];
+    settings.lastActive[key] = now;
+    const keys = Object.keys(settings.lastActive);
+    if (keys.length > 600) {
+        keys.sort((a, b) => settings.lastActive[a] - settings.lastActive[b]);
+        for (let i = 0; i < keys.length - 500; i++) delete settings.lastActive[keys[i]];
+    }
+    saveSettingsDebounced();
+}
+
 // ---------- My Chats rendering ----------
 
 function renderChatCard(entry) {
-    const { character, characterIndex, chat, ts } = entry;
-    const avatarUrl = getContext().getThumbnailUrl("avatar", character.avatar);
+    const { character, group, chat, ts } = entry;
+    const ctx = getContext();
+    const name = character?.name || group?.name || "Unknown";
     const msgCount = chat.chat_items ?? 0;
+    const isGroup = !!group;
+
+    const avatarInner = isGroup
+        ? `<div class="stlp-chat-avatar-fallback">${escapeHtml((name || "?").trim().charAt(0).toUpperCase())}</div>`
+        : `<img class="stlp-chat-avatar" src="${ctx.getThumbnailUrl("avatar", character.avatar)}" alt="" loading="lazy"
+               onerror="this.style.visibility='hidden'" />`;
+
+    const desc = isGroup ? messageSnippet(chat.mes) : descriptionSnippet(character);
 
     const card = document.createElement("div");
     card.className = "stlp-chat-card";
-    card.title = prettyChatName(chat.file_name);
+    card.title = chat.file_name;
     card.innerHTML = `
         <div class="stlp-chat-header">
-            <div class="stlp-chat-name">${escapeHtml(character.name)}</div>
+            <div class="stlp-chat-name">${escapeHtml(name)}</div>
+            ${isGroup ? '<span class="stlp-chat-group-badge">Group</span>' : ""}
         </div>
         <div class="stlp-chat-content-row">
-            <div class="stlp-chat-avatar-wrap">
-                <img class="stlp-chat-avatar" src="${avatarUrl}" alt="" loading="lazy"
-                     onerror="this.style.visibility='hidden'" />
-            </div>
+            <div class="stlp-chat-avatar-wrap">${avatarInner}</div>
             <div class="stlp-chat-desc-wrap">
-                <div class="stlp-chat-desc">${escapeHtml(descriptionSnippet(character))}</div>
+                <div class="stlp-chat-desc">${escapeHtml(desc)}</div>
                 <div class="stlp-chat-desc-fade"></div>
             </div>
         </div>
@@ -327,37 +343,8 @@ function renderChatCard(entry) {
             <button class="stlp-chat-continue">Continue</button>
         </div>
     `;
-    card.addEventListener("click", () => openChatFile(characterIndex, character.name, chat.file_name));
+    card.addEventListener("click", () => openEntry(entry));
     return card;
-}
-
-async function openChatFile(characterIndex, characterName, chatFileName) {
-    console.log(`[${extensionName}] Opening chat: ${characterName} / ${chatFileName}`);
-    try {
-        const scriptModule = await import("../../../../script.js");
-        if (typeof scriptModule.selectCharacterById !== "function") {
-            throw new Error("selectCharacterById is not exported in this ST version");
-        }
-        await scriptModule.selectCharacterById(characterIndex, characterName, chatFileName);
-    } catch (err) {
-        console.error(`[${extensionName}] Failed to open chat:`, err);
-        toastr.error(`Could not open chat: ${err.message}`, "Landing Page");
-    }
-}
-
-// After cards render, fetch the true last-message time for just the
-// displayed ones (concurrency-limited, non-blocking) and update the labels.
-async function refineShownChatTimes(container, shown) {
-    const spans = [...container.querySelectorAll(".stlp-chat-time")];
-    const updates = await mapLimited(shown, 3, async (entry) => {
-        if (refinedTsCache.has(entry.key)) return null;
-        const ts = await fetchChatLastActivity(entry.character.avatar, entry.character.name, entry.chat.file_name);
-        refinedTsCache.set(entry.key, ts);
-        return ts ? { i: shown.indexOf(entry), ts } : null;
-    });
-    for (const u of updates) {
-        if (u && spans[u.i]) spans[u.i].textContent = timeAgo(u.ts);
-    }
 }
 
 async function renderMyChats(container) {
@@ -394,8 +381,6 @@ async function renderMyChats(container) {
         more.textContent = `View all (${allChats.length}) — arrives in a later stage`;
         container.appendChild(more);
     }
-
-    refineShownChatTimes(container, shown); // fire and forget
 }
 
 // ---------- Landing page ----------
@@ -496,7 +481,7 @@ function updateLanding() {
 function onChatChanged() {
     if (isChatOpen()) {
         manuallyExited = false;
-        stampLocalActivity(); // "I was here" — next landing view sorts this chat to the top
+        stampLocalActivity();
     }
     invalidateChatData();
     updateLanding();

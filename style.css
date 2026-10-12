@@ -337,3 +337,31 @@
     border-radius: 10px;
     white-space: nowrap;
 }
+
+/* Group chat badge + avatar fallback */
+#landing_page_root .stlp-chat-group-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--stlp-accent-dim);
+    background: rgba(255, 77, 94, 0.12);
+    color: var(--stlp-accent-hover);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+#landing_page_root .stlp-chat-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--stlp-accent-hover);
+    background: linear-gradient(135deg, rgba(255, 77, 94, 0.18), rgba(217, 44, 66, 0.10));
+}
