@@ -15,7 +15,7 @@ export function renderChatCard(entry) {
         : `<img class="stlp-chat-avatar" src="${ctx.getThumbnailUrl("avatar", character.avatar)}" alt="" loading="lazy"
                onerror="this.style.visibility='hidden'" />`;
 
-    const desc = isGroup ? messageSnippet(chat.mes) : descriptionSnippet(character);
+    const desc = messageSnippet(chat.mes);
 
     const card = document.createElement("div");
     card.className = "stlp-chat-card";

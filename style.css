@@ -471,13 +471,28 @@
     box-shadow: 0 0 0 3px rgba(255, 77, 94, 0.15);
 }
 
+/* Modal list: full-width horizontal rows, like native Recent Chats */
 #landing_page_root .stlp-modal-body {
     overflow-y: auto;
-    padding: 20px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    align-content: start;
+    padding: 16px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Full-width rows instead of fixed 340px carousel cards */
+#landing_page_root .stlp-modal-body .stlp-chat-card {
+    flex: 1 1 auto;
+    width: 100%;
+}
+
+/* Keep rows tidy on wide cards: clamp preview to 2 lines */
+#landing_page_root .stlp-modal-body .stlp-chat-desc {
+    -webkit-line-clamp: 2;
+}
+
+#landing_page_root .stlp-modal-body .stlp-placeholder {
+    max-width: none;
 }
 
 #landing_page_root .stlp-modal-body::-webkit-scrollbar {
@@ -489,12 +504,15 @@
     border-radius: 5px;
 }
 
-#landing_page_root .stlp-modal-body .stlp-placeholder {
-    grid-column: 1 / -1;
+/* Footer: never overlap — stats wrap, then the button wraps to its own line */
+#landing_page_root .stlp-chat-footer {
+    flex-wrap: wrap;
+    row-gap: 8px;
 }
 
-/* Cards inside the modal grid: neutralize carousel-specific sizing */
-#landing_page_root .stlp-modal-body .stlp-chat-card {
-    flex-basis: auto;
-    scroll-snap-align: unset;
+#landing_page_root .stlp-chat-stats {
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    flex: 1 1 auto;
+    min-width: 0;
 }

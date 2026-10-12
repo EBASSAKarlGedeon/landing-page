@@ -55,7 +55,6 @@ async function loadAllChatData() {
     const characters = await waitForCharacters();
     const groups = getContext().groups || [];
     const recent = await fetchRecentChats();
-    const stamps = extension_settings[extensionName].lastActive || {};
 
     const allChats = [];
     for (const item of recent) {
@@ -69,8 +68,9 @@ async function loadAllChatData() {
         if (!isGroup && !character) continue; // orphaned character chat
 
         const key = chatKey(isGroup ? `group:${item.group}` : `char:${item.avatar}`, chatName);
-        // Native ST sorts by last_mes (last message send_date); local stamps override on mere open
-        const ts = Math.max(stamps[key] || 0, parseTimestamp(item.last_mes));
+        // Exactly like native Recent Chats: sort by last message time only.
+        // Opening a chat does NOT reorder; sending a message does.
+        const ts = parseTimestamp(item.last_mes);
 
         allChats.push({
             character,

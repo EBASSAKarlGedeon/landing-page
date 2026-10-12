@@ -74,26 +74,3 @@ export async function openEntry(entry) {
         toastr.error(`Could not open chat: ${err.message}`, "Landing Page");
     }
 }
-
-// Stamp "I was here" when a chat is opened (persisted, pruned)
-export function stampLocalActivity() {
-    const ctx = getContext();
-    if (!ctx.chatId) return;
-    let key;
-    if (ctx.groupId) {
-        key = chatKey(`group:${ctx.groupId}`, ctx.chatId);
-    } else {
-        const avatar = ctx.characters?.[ctx.characterId]?.avatar;
-        if (!avatar) return;
-        key = chatKey(`char:${avatar}`, ctx.chatId);
-    }
-    const now = Date.now();
-    const settings = extension_settings[extensionName];
-    settings.lastActive[key] = now;
-    const keys = Object.keys(settings.lastActive);
-    if (keys.length > 600) {
-        keys.sort((a, b) => settings.lastActive[a] - settings.lastActive[b]);
-        for (let i = 0; i < keys.length - 500; i++) delete settings.lastActive[keys[i]];
-    }
-    saveSettingsDebounced();
-}

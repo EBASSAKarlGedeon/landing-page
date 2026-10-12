@@ -119,7 +119,6 @@ export function updateLanding() {
 export function onChatChanged() {
     if (isChatOpen()) {
         ui.manuallyExited = false;
-        stampLocalActivity();
     }
     invalidateChatData();
     updateLanding();
