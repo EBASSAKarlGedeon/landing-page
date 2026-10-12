@@ -15,6 +15,7 @@ const defaultSettings = {
 };
 
 let landingRoot = null;
+let allChatsModalRoot = null;
 let manuallyExited = false;
 let chatDataPromise = null;
 let scriptModulePromise = null;   // cached dynamic import of script.js
@@ -376,11 +377,108 @@ async function renderMyChats(container) {
         container.appendChild(renderChatCard(entry));
     }
     if (allChats.length > limit) {
-        const more = document.createElement("div");
+        const more = document.createElement("button");
         more.className = "stlp-chat-more";
-        more.textContent = `View all (${allChats.length}) — arrives in a later stage`;
+        more.type = "button";
+        more.textContent = `View all (${allChats.length})`;
+        more.addEventListener("click", () => showAllChatsModal());
         container.appendChild(more);
     }
+}
+
+// ---------- "View all" modal ----------
+
+function closeAllChatsModal() {
+    document.removeEventListener("keydown", onAllChatsModalEsc);
+    if (allChatsModalRoot) {
+        allChatsModalRoot.remove();
+        allChatsModalRoot = null;
+    }
+}
+
+function onAllChatsModalEsc(e) {
+    if (e.key === "Escape") {
+        e.preventDefault();
+        closeAllChatsModal();
+    }
+}
+
+function entryMatchesQuery(entry, query) {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const name = entry.character?.name || entry.group?.name || "";
+    return String(name).toLowerCase().includes(q) ||
+           String(entry.chat.file_name).toLowerCase().includes(q);
+}
+
+function showAllChatsModal() {
+    if (!landingRoot || allChatsModalRoot) return;
+
+    allChatsModalRoot = document.createElement("div");
+    allChatsModalRoot.className = "stlp-modal-overlay";
+    allChatsModalRoot.innerHTML = `
+        <div class="stlp-modal" role="dialog" aria-modal="true" aria-label="All chats">
+            <div class="stlp-modal-header">
+                <div class="stlp-modal-title-group">
+                    <h3 class="stlp-modal-title">All Chats</h3>
+                    <span class="stlp-modal-count"></span>
+                </div>
+                <div class="stlp-modal-tools">
+                    <div class="stlp-modal-search-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input class="stlp-modal-search" type="text" placeholder="Filter by character or chat name..." autocomplete="off" />
+                    </div>
+                    <button class="stlp-icon-btn stlp-modal-close" title="Close">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="stlp-modal-body"></div>
+        </div>
+    `;
+    landingRoot.appendChild(allChatsModalRoot);
+
+    const searchInput = allChatsModalRoot.querySelector(".stlp-modal-search");
+    const countLabel = allChatsModalRoot.querySelector(".stlp-modal-count");
+    const body = allChatsModalRoot.querySelector(".stlp-modal-body");
+
+    allChatsModalRoot.addEventListener("click", (e) => {
+        if (e.target === allChatsModalRoot) closeAllChatsModal();
+    });
+    allChatsModalRoot.querySelector(".stlp-modal-close").addEventListener("click", closeAllChatsModal);
+    document.addEventListener("keydown", onAllChatsModalEsc);
+
+    const renderList = (entries, total) => {
+        body.innerHTML = "";
+        if (entries.length === 0) {
+            body.innerHTML = `<div class="stlp-placeholder">No chats match your search.</div>`;
+        } else {
+            for (const entry of entries) {
+                body.appendChild(renderChatCard(entry));
+            }
+        }
+        countLabel.textContent = entries.length === total
+            ? `${total} chat${total === 1 ? "" : "s"}`
+            : `${entries.length} of ${total} chats`;
+    };
+
+    (async () => {
+        try {
+            const allChats = chatDataPromise
+                ? await chatDataPromise
+                : (chatDataPromise = loadAllChatData());
+            renderList(allChats, allChats.length);
+            searchInput.addEventListener("input", () => {
+                const q = searchInput.value.trim();
+                renderList(allChats.filter(e => entryMatchesQuery(e, q)), allChats.length);
+            });
+        } catch (err) {
+            console.error(`[${extensionName}] Modal chat data load failed:`, err);
+            body.innerHTML = `<div class="stlp-placeholder">Failed to load chats — check console (F12).</div>`;
+        }
+    })();
+
+    searchInput.focus();
 }
 
 // ---------- Landing page ----------
@@ -456,12 +554,17 @@ function showLanding() {
 function onCtrlK(e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && landingRoot) {
         e.preventDefault();
-        landingRoot.querySelector("#stlp_search")?.focus();
+        // While the modal is open, Ctrl+K targets the modal filter instead
+        const target = allChatsModalRoot
+            ? allChatsModalRoot.querySelector(".stlp-modal-search")
+            : landingRoot.querySelector("#stlp_search");
+        target?.focus();
     }
 }
 
 function hideLanding(manual) {
     if (manual) manuallyExited = true;
+    closeAllChatsModal();
     document.removeEventListener("keydown", onCtrlK);
     if (!landingRoot) return;
     console.log(`[${extensionName}] Hiding landing page${manual ? " (manual exit)" : ""}`);
