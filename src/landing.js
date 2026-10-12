@@ -3,7 +3,7 @@ import { extension_settings } from "../../../../extensions.js";
 import { extensionName } from "./config.js";
 import { ui } from "./state.js";
 import { getChatData, invalidateChatData } from "./chatData.js";
-import { isChatOpen, stampLocalActivity } from "./chatActions.js";
+import { isChatOpen} from "./chatActions.js";
 import { renderMyChats } from "./myChats.js";
 import { closeAllChatsModal } from "./allChatsModal.js";
 
