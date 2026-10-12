@@ -1,15 +1,15 @@
-# Landing Page
+# Filtered Welcome Chats
 
-A JanitorAI-inspired landing page for SillyTavern (red theme).
-Work in progress — currently testing basic functionality.
+Hides recent chats on the welcome screen when their character cards
+are filtered out in the character management panel.
 
 ## Installation
 
-1. Open SillyTavern
-2. Extensions → Install Extension
-3. Paste GitHub URL
-4. Refresh page
+1. Place the `filtered-welcome-chats` folder in
+   `SillyTavern/data/default-user/extensions/third-party/`
+   (or `SillyTavern/scripts/extensions/third-party/` for local dev)
+2. Refresh the page
 
-## Testing (Stage 1)
+## Testing
 
-Look for "Landing Page" in Extensions settings (right panel).
+Look for "Filtered Welcome Chats" in Extensions settings (right panel).

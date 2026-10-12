@@ -1,33 +1,21 @@
-// Landing Page — entry point.
-// All logic lives in ./src/* modules; this file only wires everything up.
-import { eventSource, event_types } from "../../../../script.js";
-import { extensionName, extensionFolderPath } from "./src/config.js";
-import { loadSettings, onEnabledChange } from "./src/settings.js";
-import { onChatChanged, updateLanding } from "./src/landing.js";
-import { invalidateChatData } from "./src/chatData.js";
+// Import from SillyTavern core
+import { extension_settings, getContext, loadExtensionSettings } from "../../../extensions.js";
+import { saveSettingsDebounced } from "../../../../script.js";
 
+// Extension name MUST match folder name
+const extensionName = "filtered-welcome-chats";
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+
+// Extension initialization
 jQuery(async () => {
     console.log(`[${extensionName}] Loading...`);
 
     try {
+        // Load HTML from file
         const settingsHtml = await $.get(`${extensionFolderPath}/example.html`);
+
+        // Append to settings panel (right column)
         $("#extensions_settings2").append(settingsHtml);
-
-        $("#landing_page_enabled").on("input", onEnabledChange);
-        loadSettings();
-
-        eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-        // Character list loads after we do — refresh when it's ready
-        if (event_types.CHARACTER_PAGE_LOADED) {
-            eventSource.on(event_types.CHARACTER_PAGE_LOADED, () => {
-                invalidateChatData();
-                updateLanding();
-            });
-        }
-        if (event_types.APP_READY) {
-            eventSource.on(event_types.APP_READY, () => setTimeout(updateLanding, 100));
-        }
-        setTimeout(updateLanding, 1000);
 
         console.log(`[${extensionName}] ✅ Loaded successfully`);
     } catch (error) {

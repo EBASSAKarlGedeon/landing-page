@@ -1,11 +1,11 @@
 {
-    "display_name": "Landing Page",
+    "display_name": "Filtered Welcome Chats",
     "loading_order": 100,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "You",
+    "author": "Your Name",
     "version": "0.1.0",
-    "homePage": "https://github.com/EBASSAKarlGedeon/landing-page"
+    "homePage": "https://github.com/username/filtered-welcome-chats"
 }
