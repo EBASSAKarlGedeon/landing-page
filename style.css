@@ -839,7 +839,8 @@
     display: grid;
     grid-template-columns: 300px 1fr;
     width: min(1000px, 100%);
-    max-height: min(800px, 100%);
+    height: min(800px, 100%);
+    grid-template-rows: minmax(0, 1fr);
     border: 1px solid var(--stlp-border);
     border-radius: 16px;
     background: #1b1e24;
@@ -1045,7 +1046,7 @@
     overflow-y: auto;
     /* Fills the remaining height of the right column, scrolls inside */
     flex: 1 1 auto;
-    min-height: 120px;
+    min-height: 0;
     max-height: 100%;
     padding-right: 6px;
 }
@@ -1071,6 +1072,7 @@
 @media (max-width: 768px) {
     #landing_page_root .stlp-details {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
         overflow-y: auto;
     }
 
