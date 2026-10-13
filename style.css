@@ -830,7 +830,9 @@
 }
 
 /* ============ Character details popup (Stage 7) ============ */
-/* Reuses .stlp-modal-overlay from the View-all modal for the backdrop. */
+/* Reuses .stlp-modal-overlay from the View-all modal for the backdrop.
+   60-30-10: 60% neutral surfaces, 30% structural frames/panels,
+   10% red accent on interactive elements. */
 
 #landing_page_root .stlp-details {
     position: relative;
@@ -853,7 +855,7 @@
     background: rgba(22, 24, 29, 0.7);
 }
 
-/* ---- Left column ---- */
+/* ---- Left column (60% neutral + subtle gradient backdrop) ---- */
 #landing_page_root .stlp-details-left {
     display: flex;
     flex-direction: column;
@@ -861,6 +863,7 @@
     padding: 20px;
     border-right: 1px solid var(--stlp-border);
     overflow-y: auto;
+    background: linear-gradient(180deg, rgba(255, 77, 94, 0.05), rgba(22, 24, 29, 0) 45%);
 }
 
 #landing_page_root .stlp-details-art {
@@ -890,14 +893,15 @@
     opacity: 0.6;
 }
 
+/* Buttons sit right under the date — NOT pushed to the bottom */
 #landing_page_root .stlp-details-actions {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: auto;
-    padding-top: 8px;
+    margin-top: 4px;
 }
 
+/* 10% accent: Resume is THE interactive element — full red gradient */
 #landing_page_root .stlp-details-resume,
 #landing_page_root .stlp-details-newchat {
     padding: 10px 16px;
@@ -920,6 +924,7 @@
     box-shadow: 0 0 14px rgba(255, 77, 94, 0.4);
 }
 
+/* Secondary action: neutral structural button, red on hover */
 #landing_page_root .stlp-details-newchat {
     color: var(--stlp-text);
     background: rgba(255, 255, 255, 0.05);
@@ -932,20 +937,25 @@
     box-shadow: 0 0 14px rgba(255, 77, 94, 0.25);
 }
 
-/* ---- Right column ---- */
+/* ---- Right column (30% structural panels on 60% neutral) ---- */
 #landing_page_root .stlp-details-right {
     overflow-y: auto;
     padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 24px;
+    min-height: 0;
 }
 
-#landing_page_root .stlp-details-right::-webkit-scrollbar {
+#landing_page_root .stlp-details-right::-webkit-scrollbar,
+#landing_page_root .stlp-details-notes::-webkit-scrollbar,
+#landing_page_root .stlp-details-left::-webkit-scrollbar {
     width: 10px;
 }
 
-#landing_page_root .stlp-details-right::-webkit-scrollbar-thumb {
+#landing_page_root .stlp-details-right::-webkit-scrollbar-thumb,
+#landing_page_root .stlp-details-notes::-webkit-scrollbar-thumb,
+#landing_page_root .stlp-details-left::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.12);
     border-radius: 5px;
 }
@@ -1027,12 +1037,17 @@
     text-overflow: ellipsis;
 }
 
-/* ---- Creator's notes ---- */
+/* ---- Creator's notes: own scrollable region ---- */
 #landing_page_root .stlp-details-notes {
     font-size: 0.88rem;
     line-height: 1.6;
     opacity: 0.85;
-    overflow-wrap: break-word;
+    overflow-y: auto;
+    /* Fills the remaining height of the right column, scrolls inside */
+    flex: 1 1 auto;
+    min-height: 120px;
+    max-height: 100%;
+    padding-right: 6px;
 }
 
 #landing_page_root .stlp-details-notes p {
@@ -1066,5 +1081,9 @@
 
     #landing_page_root .stlp-details-art img {
         aspect-ratio: 16 / 9;
+    }
+
+    #landing_page_root .stlp-details-notes {
+        max-height: 40vh;
     }
 }
