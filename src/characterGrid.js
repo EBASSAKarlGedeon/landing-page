@@ -12,7 +12,6 @@ import { getAllTags, isTagExcluded, toggleTagExclusion, isCharacterExcluded } fr
 import { renderMyChats } from "./myChats.js";
 import { showCharacterDetails } from "./characterDetails.js";
 import { escapeHtml, parseTimestamp } from "./helpers.js";
-import { extension_settings } from "../../../../extensions.js"; // (already imported)
 
 function currentSettings() { return extension_settings[extensionName]; }
 
