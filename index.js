@@ -1,11 +1,3 @@
-// Landing Page — entry point.
-// All logic lives in ./src/* modules; this file only wires everything up.
-import { eventSource, event_types } from "../../../../script.js";
-import { extensionName, extensionFolderPath } from "./src/config.js";
-import { loadSettings, onEnabledChange } from "./src/settings.js";
-import { onChatChanged, updateLanding } from "./src/landing.js";
-import { invalidateChatData } from "./src/chatData.js";
-
 jQuery(async () => {
     console.log(`[${extensionName}] Loading...`);
 
@@ -15,6 +7,9 @@ jQuery(async () => {
 
         $("#landing_page_enabled").on("input", onEnabledChange);
         loadSettings();
+
+        // Global shortcut: Ctrl+L toggles the landing page (both directions)
+        document.addEventListener("keydown", onCtrlL);
 
         eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
         // Character list loads after we do — refresh when it's ready

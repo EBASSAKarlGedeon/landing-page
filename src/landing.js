@@ -141,6 +141,20 @@ function onCtrlK(e) {
     }
 }
 
+// Ctrl+L: toggle the landing page from anywhere.
+// Registered permanently at init (see index.js) so it works both ways.
+export function onCtrlL(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "l") return;
+    e.preventDefault();
+    if (ui.landingRoot) {
+        hideLanding(true);
+    } else if (!isChatOpen()) {
+        // Re-show even after a manual exit — the shortcut IS the manual control
+        ui.manuallyExited = false;
+        showLanding();
+    }
+}
+
 export function hideLanding(manual) {
     if (manual) ui.manuallyExited = true;
     closeAllChatsModal();
