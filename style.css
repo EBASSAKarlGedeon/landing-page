@@ -480,15 +480,13 @@
     gap: 12px;
 }
 
-/* Full-width rows instead of fixed 340px carousel cards */
+/* Full-width version of the My Chats card — same structure and
+   proportions, just wider. flex: 0 0 auto = natural height
+   (flex-grow would stretch cards vertically when the list is short,
+   e.g. after filtering). */
 #landing_page_root .stlp-modal-body .stlp-chat-card {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     width: 100%;
-}
-
-/* Keep rows tidy on wide cards: clamp preview to 2 lines */
-#landing_page_root .stlp-modal-body .stlp-chat-desc {
-    -webkit-line-clamp: 2;
 }
 
 #landing_page_root .stlp-modal-body .stlp-placeholder {
