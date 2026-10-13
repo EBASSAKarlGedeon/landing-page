@@ -40,11 +40,13 @@ export function applyStBarState() {
     const btn = ui.landingRoot.querySelector("#stlp_stbar_btn");
     if (show) {
         $("#sheld").show();
+        ui.landingRoot.classList.add("stlp-pinned");   // ← add
         ui.landingRoot.style.top = `${measureStBarHeight()}px`;
         btn?.classList.add("active");
         btn?.setAttribute("title", "Hide SillyTavern bar");
     } else {
         $("#sheld").hide();
+        ui.landingRoot.classList.remove("stlp-pinned"); // ← add
         ui.landingRoot.style.top = "";
         btn?.classList.remove("active");
         btn?.setAttribute("title", "Show SillyTavern bar");
