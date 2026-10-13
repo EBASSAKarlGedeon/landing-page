@@ -10,7 +10,7 @@ import { getChatData, waitForCharacters } from "./chatData.js";
 import { renderCharacterCard, toggleFavorite, preloadCharacterAvatars } from "./characterCards.js";
 import { getAllTags, isTagExcluded, toggleTagExclusion, isCharacterExcluded } from "./tagFilter.js";
 import { renderMyChats } from "./myChats.js";
-import { openEntry } from "./chatActions.js";
+import { showCharacterDetails } from "./characterDetails.js";
 import { escapeHtml, parseTimestamp } from "./helpers.js";
 
 const PAGE_SIZE = 24;
@@ -93,15 +93,7 @@ function renderGrid(container) {
                 await toggleFavorite(c);
                 renderGrid(container); // refresh hearts + favorites pill
             },
-            onOpen: (c) => {
-                // Until Stage 7's details popup: open the latest chat.
-                const entry = gridData.latest.get(c.avatar);
-                if (entry) {
-                    openEntry(entry);
-                } else {
-                    toastr.info(`${c.name} has no chats yet — the details popup arrives in Stage 7.`, "Landing Page");
-                }
-            },
+            onOpen: (c) => showCharacterDetails(c),
         }));
     }
 

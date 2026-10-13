@@ -6,6 +6,8 @@ export const ui = {
     landingRoot: null,
     /** @type {HTMLElement | null} The "View all" modal overlay while open. */
     allChatsModalRoot: null,
+    /** @type {HTMLElement | null} The character details popup while open. */
+    characterDetailsRoot: null,
     /** True after the user clicked Exit — suppresses auto-show until a chat opens. */
     manuallyExited: false,
 };

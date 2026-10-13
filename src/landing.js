@@ -7,6 +7,7 @@ import { renderMyChats } from "./myChats.js";
 import { closeAllChatsModal } from "./allChatsModal.js";
 import { invalidateChatData } from "./chatData.js";
 import { renderCharacterGrid, onGridSearchChange } from "./characterGrid.js";
+import { closeCharacterDetails } from "./characterDetails.js";
 
 function getStBackground() {
     for (const id of ["bg1", "bg2"]) {
@@ -103,6 +104,7 @@ function onCtrlK(e) {
 export function hideLanding(manual) {
     if (manual) ui.manuallyExited = true;
     closeAllChatsModal();
+    closeCharacterDetails();
     document.removeEventListener("keydown", onCtrlK);
     if (!ui.landingRoot) return;
     console.log(`[${extensionName}] Hiding landing page${manual ? " (manual exit)" : ""}`);
