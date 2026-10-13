@@ -9,6 +9,7 @@ import { escapeHtml, parseTimestamp } from "./helpers.js";
 import { getChatData } from "./chatData.js";
 import { openEntry } from "./chatActions.js";
 import { getFullAvatarUrl } from "./characterCards.js";
+import { scrollToLastMessage } from "./chatActions.js";
 
 // JAI script-card palette. Each lorebook gets a random pick per popup open.
 const LOREBOOK_COLORS = [
@@ -207,6 +208,7 @@ export async function showCharacterDetails(character) {
                 throw new Error("doNewChat is not exported in this ST version");
             }
             await scriptModule.doNewChat({ deleteCurrentChat: false });
+            scrollToLastMessage();
         } catch (err) {
             console.error(`[${extensionName}] Failed to start new chat:`, err);
             toastr.error(`Could not start a new chat: ${err.message}`, "Landing Page");

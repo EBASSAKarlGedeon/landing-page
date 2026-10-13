@@ -1,7 +1,6 @@
 // Opening chats (verified sequence from ST's own welcome screen),
-// the "was here" activity stamp, and the is-chat-open check.
-import { extension_settings, getContext } from "../../../../extensions.js";
-import { saveSettingsDebounced } from "../../../../../script.js";
+// then jumping straight to the last message, and the is-chat-open check.
+import { getContext } from "../../../../extensions.js";
 import { extensionName } from "./config.js";
 
 let scriptModulePromise = null;   // cached dynamic import of script.js
@@ -24,6 +23,36 @@ export function isChatOpen() {
     return charOk || groupOk;
 }
 
+// ---------- Scroll to the last message ----------
+
+function scrollChatContainerToBottom() {
+    const chatEl = document.getElementById("chat");
+    if (!chatEl) return;
+    chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: "auto" });
+}
+
+// Jump to the last message. Prefers ST's own scroller (handles its own
+// smooth-scroll and any sticky behavior); falls back to a plain scroll.
+// Repeats once after a short delay so images that load late (and grow
+// the message list) don't leave us stranded mid-history.
+export function scrollToLastMessage() {
+    const ctx = getContext();
+    if (typeof ctx.scrollChatToBottom === "function") {
+        try { ctx.scrollChatToBottom(); } catch { scrollChatContainerToBottom(); }
+    } else {
+        scrollChatContainerToBottom();
+    }
+    setTimeout(() => {
+        const ctx2 = getContext();
+        if (typeof ctx2.scrollChatToBottom === "function") {
+            try { ctx2.scrollChatToBottom(); return; } catch { /* fall through */ }
+        }
+        scrollChatContainerToBottom();
+    }, 350);
+}
+
+// ---------- Opening chats ----------
+
 async function openCharacterChatFile(avatar, chatName) {
     const ctx = getContext();
     const scriptModule = await getScriptModule();
@@ -37,9 +66,11 @@ async function openCharacterChatFile(avatar, chatName) {
     ctx.saveSettingsDebounced();
     if (ctx.getCurrentChatId() === chatName) {
         console.debug(`[${extensionName}] Chat ${chatName} is already open.`);
+        scrollToLastMessage();
         return;
     }
     await ctx.openCharacterChat(chatName);
+    scrollToLastMessage();
 }
 
 async function openGroupChatFile(groupId, chatName) {
@@ -55,8 +86,12 @@ async function openGroupChatFile(groupId, chatName) {
         scriptModule.setActiveGroup(groupId);
     }
     ctx.saveSettingsDebounced();
-    if (ctx.getCurrentChatId() === chatName) return;
+    if (ctx.getCurrentChatId() === chatName) {
+        scrollToLastMessage();
+        return;
+    }
     await ctx.openGroupChat(groupId, chatName);
+    scrollToLastMessage();
 }
 
 export async function openEntry(entry) {
