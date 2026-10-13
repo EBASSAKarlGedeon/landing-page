@@ -11,8 +11,9 @@ export const defaultSettings = {
     chatsShown: 8,
     tagFilter: {}, // tagId -> true (excluded tags hide cards AND their chats)
     theme: "red",
-    accentColor: null,  // custom override; null = use theme
-    bgColor: null,      // custom override; null = use theme
+    accentColor: null,
+    bgColor: null,
     cardHeight: 260,
     defaultSort: "newest",
+    showStBar: false, // ST top bar pinned above the landing page
 };

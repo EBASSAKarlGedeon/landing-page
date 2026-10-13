@@ -1209,3 +1209,24 @@
 #landing_page_root .stlp-char-art {
     height: var(--stlp-card-art-height, 260px);
 }
+
+/* ============ ST top bar toggle ============ */
+/* Smooth push-down when the ST bar appears above us */
+#landing_page_root {
+    transition: top 0.2s ease;
+}
+
+#landing_page_root .stlp-stbar-btn svg {
+    transition: transform 0.2s ease;
+}
+
+#landing_page_root .stlp-stbar-btn.active {
+    background: rgba(255, 77, 94, 0.18);
+    border-color: var(--stlp-accent);
+    color: var(--stlp-accent-hover);
+}
+
+/* Chevron flips when the bar is showing */
+#landing_page_root .stlp-stbar-btn.active svg {
+    transform: rotate(180deg);
+}

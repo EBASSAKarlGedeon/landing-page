@@ -1,5 +1,6 @@
 // Landing page lifecycle: build, show, hide, and ST event reactions.
 import { extension_settings } from "../../../../extensions.js";
+import { saveSettingsDebounced } from "../../../../../script.js";
 import { extensionName } from "./config.js";
 import { ui } from "./state.js";
 import { isChatOpen} from "./chatActions.js";
@@ -8,7 +9,8 @@ import { closeAllChatsModal } from "./allChatsModal.js";
 import { invalidateChatData } from "./chatData.js";
 import { renderCharacterGrid, onGridSearchChange } from "./characterGrid.js";
 import { closeCharacterDetails } from "./characterDetails.js";
-import { showSettingsPanel, closeSettingsPanel } from "./settingsPanel.js";
+import { closeSettingsPanel } from "./settingsPanel.js";
+import { showSettingsPanel } from "./settingsPanel.js";
 
 function getStBackground() {
     for (const id of ["bg1", "bg2"]) {
@@ -19,6 +21,41 @@ function getStBackground() {
         }
     }
     return null;
+}
+
+// ---------- ST top bar toggle ----------
+
+// The bar's real rendered height (handles zoom/themes). #top-bar is the
+// fixed wrapper in current ST; fall back to #top-settings-holder.
+function measureStBarHeight() {
+    const bar = document.getElementById("top-bar") || document.getElementById("top-settings-holder");
+    return bar && bar.offsetHeight > 0 ? bar.offsetHeight : 45;
+}
+
+// Applies the persisted showStBar state: shows #sheld so the bar renders,
+// then pushes the landing down by the bar's height (or restores fullscreen).
+export function applyStBarState() {
+    if (!ui.landingRoot) return;
+    const show = extension_settings[extensionName].showStBar === true;
+    const btn = ui.landingRoot.querySelector("#stlp_stbar_btn");
+    if (show) {
+        $("#sheld").show();
+        ui.landingRoot.style.top = `${measureStBarHeight()}px`;
+        btn?.classList.add("active");
+        btn?.setAttribute("title", "Hide SillyTavern bar");
+    } else {
+        $("#sheld").hide();
+        ui.landingRoot.style.top = "";
+        btn?.classList.remove("active");
+        btn?.setAttribute("title", "Show SillyTavern bar");
+    }
+}
+
+export function toggleStBar() {
+    const s = extension_settings[extensionName];
+    s.showStBar = s.showStBar !== true; // undefined/false -> true, true -> false
+    saveSettingsDebounced();
+    applyStBarState();
 }
 
 function buildLanding() {
@@ -33,6 +70,9 @@ function buildLanding() {
                     <input id="stlp_search" type="text" placeholder="Search characters... (Ctrl+K)" autocomplete="off" />
                 </div>
                 <div class="stlp-topbar-actions">
+                    <button id="stlp_stbar_btn" class="stlp-icon-btn stlp-stbar-btn" title="Show SillyTavern bar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
                     <button id="stlp_settings_btn" class="stlp-icon-btn" title="Settings">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </button>
@@ -54,6 +94,7 @@ function buildLanding() {
         </div>
     `;
 
+    el.querySelector("#stlp_stbar_btn").addEventListener("click", toggleStBar);
     el.querySelector("#stlp_exit_btn").addEventListener("click", () => {
         console.log(`[${extensionName}] Manual exit`);
         hideLanding(true);
@@ -80,7 +121,7 @@ export function showLanding() {
         ui.landingRoot.style.backgroundImage = bg;
     }
 
-    $("#sheld").hide();
+    applyStBarState(); // hides or shows #sheld + offsets per saved setting
 
     const chatsContainer = ui.landingRoot.querySelector("#stlp_my_chats");
     renderMyChats(chatsContainer);
