@@ -12,6 +12,9 @@ import { getAllTags, isTagExcluded, toggleTagExclusion, isCharacterExcluded } fr
 import { renderMyChats } from "./myChats.js";
 import { showCharacterDetails } from "./characterDetails.js";
 import { escapeHtml, parseTimestamp } from "./helpers.js";
+import { extension_settings } from "../../../../extensions.js"; // (already imported)
+
+function currentSettings() { return extension_settings[extensionName]; }
 
 const PAGE_SIZE = 24;
 
@@ -154,6 +157,7 @@ export async function renderCharacterGrid(container) {
         gridData = { characters, counts, latest };
 
         gridState.shown = PAGE_SIZE;
+        gridState.sort = currentSettings().defaultSort ?? "newest";
         gridState.search = ""; // the top-bar box is rebuilt empty on each show
         renderGrid(container);
     } catch (err) {

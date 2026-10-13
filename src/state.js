@@ -8,6 +8,8 @@ export const ui = {
     allChatsModalRoot: null,
     /** @type {HTMLElement | null} The character details popup while open. */
     characterDetailsRoot: null,
+    /** @type {HTMLElement | null} The settings panel while open. */
+    settingsPanelRoot: null,
     /** True after the user clicked Exit — suppresses auto-show until a chat opens. */
     manuallyExited: false,
 };

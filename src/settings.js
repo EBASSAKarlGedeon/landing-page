@@ -10,6 +10,10 @@ export async function loadSettings() {
         Object.assign(extension_settings[extensionName], defaultSettings);
     }
     extension_settings[extensionName].tagFilter = extension_settings[extensionName].tagFilter || {};
+    const s = extension_settings[extensionName];
+    for (const key of Object.keys(defaultSettings)) {
+        if (s[key] === undefined) s[key] = defaultSettings[key];
+    }
     $("#landing_page_enabled").prop("checked", extension_settings[extensionName].enabled);
 }
 

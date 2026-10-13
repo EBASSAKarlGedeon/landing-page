@@ -10,4 +10,9 @@ export const defaultSettings = {
     enabled: true,
     chatsShown: 8,
     tagFilter: {}, // tagId -> true (excluded tags hide cards AND their chats)
+    theme: "red",
+    accentColor: null,  // custom override; null = use theme
+    bgColor: null,      // custom override; null = use theme
+    cardHeight: 260,
+    defaultSort: "newest",
 };

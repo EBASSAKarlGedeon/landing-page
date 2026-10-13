@@ -8,6 +8,7 @@ import { closeAllChatsModal } from "./allChatsModal.js";
 import { invalidateChatData } from "./chatData.js";
 import { renderCharacterGrid, onGridSearchChange } from "./characterGrid.js";
 import { closeCharacterDetails } from "./characterDetails.js";
+import { showSettingsPanel, closeSettingsPanel } from "./settingsPanel.js";
 
 function getStBackground() {
     for (const id of ["bg1", "bg2"]) {
@@ -57,9 +58,7 @@ function buildLanding() {
         console.log(`[${extensionName}] Manual exit`);
         hideLanding(true);
     });
-    el.querySelector("#stlp_settings_btn").addEventListener("click", () => {
-        toastr.info("Landing page settings will open here in a later stage.", "Landing Page");
-    });
+    el.querySelector("#stlp_settings_btn").addEventListener("click", () => showSettingsPanel());
     el.querySelector("#stlp_search").addEventListener("keydown", (e) => {
         if (e.key === "Escape") e.target.blur();
     });
@@ -105,6 +104,7 @@ export function hideLanding(manual) {
     if (manual) ui.manuallyExited = true;
     closeAllChatsModal();
     closeCharacterDetails();
+    closeSettingsPanel();
     document.removeEventListener("keydown", onCtrlK);
     if (!ui.landingRoot) return;
     console.log(`[${extensionName}] Hiding landing page${manual ? " (manual exit)" : ""}`);
