@@ -1,3 +1,11 @@
+// Landing Page — entry point.
+// All logic lives in ./src/* modules; this file only wires everything up.
+import { eventSource, event_types } from "../../../../script.js";
+import { extensionName, extensionFolderPath } from "./src/config.js";
+import { loadSettings, onEnabledChange } from "./src/settings.js";
+import { onChatChanged, updateLanding, onCtrlL } from "./src/landing.js";
+import { invalidateChatData } from "./src/chatData.js";
+
 jQuery(async () => {
     console.log(`[${extensionName}] Loading...`);
 
