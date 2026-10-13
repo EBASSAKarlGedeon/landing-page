@@ -1,7 +1,7 @@
 // Renders ONE chat card. Shared by the My Chats carousel and the View-all modal.
 import { getContext } from "../../../../extensions.js";
-import { escapeHtml, timeAgo, descriptionSnippet, messageSnippet } from "./helpers.js";
 import { openEntry } from "./chatActions.js";
+import { escapeHtml, timeAgo, messageSnippet } from "./helpers.js";
 
 export function renderChatCard(entry) {
     const { character, group, chat, ts } = entry;

@@ -9,7 +9,7 @@ export async function loadSettings() {
     if (Object.keys(extension_settings[extensionName]).length === 0) {
         Object.assign(extension_settings[extensionName], defaultSettings);
     }
-    extension_settings[extensionName].lastActive = extension_settings[extensionName].lastActive || {};
+    extension_settings[extensionName].tagFilter = extension_settings[extensionName].tagFilter || {};
     $("#landing_page_enabled").prop("checked", extension_settings[extensionName].enabled);
 }
 

@@ -2,10 +2,11 @@
 import { extension_settings } from "../../../../extensions.js";
 import { extensionName } from "./config.js";
 import { ui } from "./state.js";
-import { getChatData, invalidateChatData } from "./chatData.js";
 import { isChatOpen} from "./chatActions.js";
 import { renderMyChats } from "./myChats.js";
 import { closeAllChatsModal } from "./allChatsModal.js";
+import { invalidateChatData } from "./chatData.js";
+import { renderCharacterGrid, onGridSearchChange } from "./characterGrid.js";
 
 function getStBackground() {
     for (const id of ["bg1", "bg2"]) {
@@ -45,7 +46,7 @@ function buildLanding() {
                 </section>
                 <section class="stlp-section">
                     <h2 class="stlp-section-title">Characters</h2>
-                    <div class="stlp-placeholder">Character grid arrives in Stage 6.</div>
+                    <div id="stlp_characters"></div>
                 </section>
             </main>
         </div>
@@ -61,6 +62,7 @@ function buildLanding() {
     el.querySelector("#stlp_search").addEventListener("keydown", (e) => {
         if (e.key === "Escape") e.target.blur();
     });
+    el.querySelector("#stlp_search").addEventListener("input", (e) => onGridSearchChange(e.target.value));
 
     return el;
 }
@@ -82,6 +84,7 @@ export function showLanding() {
 
     const chatsContainer = ui.landingRoot.querySelector("#stlp_my_chats");
     renderMyChats(chatsContainer);
+    renderCharacterGrid(ui.landingRoot.querySelector("#stlp_characters"));
 
     document.addEventListener("keydown", onCtrlK);
 }

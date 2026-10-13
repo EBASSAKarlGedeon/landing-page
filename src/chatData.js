@@ -40,7 +40,7 @@ async function fetchRecentChats() {
 }
 
 // Characters array isn't populated until ST emits character_page_loaded.
-async function waitForCharacters(timeoutMs = 20000) {
+export async function waitForCharacters(timeoutMs = 20000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
         const chars = getContext().characters;

@@ -3,6 +3,7 @@ import { extensionName } from "./config.js";
 import { ui } from "./state.js";
 import { getChatData } from "./chatData.js";
 import { renderChatCard } from "./chatCards.js";
+import { isEntryExcluded } from "./tagFilter.js";
 
 export function closeAllChatsModal() {
     document.removeEventListener("keydown", onAllChatsModalEsc);
@@ -80,7 +81,7 @@ export function showAllChatsModal() {
 
     (async () => {
         try {
-            const allChats = await getChatData();
+            const allChats = (await getChatData()).filter(e => !isEntryExcluded(e));
             renderList(allChats, allChats.length);
             searchInput.addEventListener("input", () => {
                 const q = searchInput.value.trim();

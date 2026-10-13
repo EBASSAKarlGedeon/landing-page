@@ -1,9 +1,11 @@
 // The "My Chats" section: horizontal carousel of the N most recent chats.
+// Privacy rule: chats whose character carries an excluded tag are hidden.
 import { extension_settings } from "../../../../extensions.js";
 import { extensionName } from "./config.js";
 import { getChatData } from "./chatData.js";
 import { renderChatCard } from "./chatCards.js";
 import { showAllChatsModal } from "./allChatsModal.js";
+import { isEntryExcluded } from "./tagFilter.js";
 
 export async function renderMyChats(container) {
     const settings = extension_settings[extensionName];
@@ -20,21 +22,26 @@ export async function renderMyChats(container) {
         return;
     }
 
-    if (allChats.length === 0) {
-        container.innerHTML = `<div class="stlp-placeholder">No chats yet — start one from the Characters section below (coming in Stage 6).</div>`;
+    // Privacy rule: excluded tags hide their chats too.
+    const visible = allChats.filter(e => !isEntryExcluded(e));
+
+    if (visible.length === 0) {
+        container.innerHTML = allChats.length > 0
+            ? `<div class="stlp-placeholder">All chats are hidden by the tag filter.</div>`
+            : `<div class="stlp-placeholder">No chats yet — start one from the Characters section below.</div>`;
         return;
     }
 
     container.innerHTML = "";
-    const shown = allChats.slice(0, limit);
+    const shown = visible.slice(0, limit);
     for (const entry of shown) {
         container.appendChild(renderChatCard(entry));
     }
-    if (allChats.length > limit) {
+    if (visible.length > limit) {
         const more = document.createElement("button");
         more.className = "stlp-chat-more";
         more.type = "button";
-        more.textContent = `View all (${allChats.length})`;
+        more.textContent = `View all (${visible.length})`;
         more.addEventListener("click", () => showAllChatsModal());
         container.appendChild(more);
     }

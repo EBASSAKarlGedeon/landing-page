@@ -9,5 +9,5 @@ export const RECENT_FETCH_MAX = 200;
 export const defaultSettings = {
     enabled: true,
     chatsShown: 8,
-    lastActive: {}, // chatKey -> timestamp (local "I opened this" stamps)
+    tagFilter: {}, // tagId -> true (excluded tags hide cards AND their chats)
 };

@@ -3,7 +3,6 @@
 import { extension_settings, getContext } from "../../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../../script.js";
 import { extensionName } from "./config.js";
-import { chatKey } from "./helpers.js";
 
 let scriptModulePromise = null;   // cached dynamic import of script.js
 let groupModulePromise = null;    // cached dynamic import of group-chats.js
