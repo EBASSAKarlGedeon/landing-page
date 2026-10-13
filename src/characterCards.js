@@ -1,8 +1,36 @@
 // Renders ONE character card for the grid (JAI style) + the favorite toggle.
+// Grid art uses the FULL-QUALITY avatar PNG (/characters/<avatar>) instead
+// of the /thumbnail endpoint, which locks images to a tiny 96x144 crop.
 import { getContext } from "../../../../extensions.js";
 import { extensionName } from "./config.js";
 import { escapeHtml, descriptionSnippet } from "./helpers.js";
 import { getAllTags, getCharacterTagIds } from "./tagFilter.js";
+
+// Full-quality character image. Character cards are PNGs served
+// straight from the /characters/ directory.
+export function getFullAvatarUrl(avatar) {
+    return `/characters/${encodeURIComponent(avatar)}`;
+}
+
+// Pre-decode via Image().decode() so the browser's decoded-image cache
+// holds the bitmap when the real <img> lands in DOM. URL matches the
+// card path exactly so the cache key lines up. Capped to avoid
+// hammering the browser with dozens of simultaneous full-size decodes.
+const inFlightPreloads = new Set();
+
+export function preloadCharacterAvatars(characters) {
+    const CAP = 12;
+    for (const character of characters) {
+        if (inFlightPreloads.size >= CAP) break;
+        if (!character?.avatar || inFlightPreloads.has(character.avatar)) continue;
+        inFlightPreloads.add(character.avatar);
+        const img = new Image();
+        img.src = getFullAvatarUrl(character.avatar);
+        img.decode()
+            .catch(() => {}) // 404s etc. just fall back to onerror in the card
+            .finally(() => inFlightPreloads.delete(character.avatar));
+    }
+}
 
 // Syncs with ST's native favorites (power_user.favorites) so the
 // hearts agree in both UIs, then asks ST to redraw its character list.
@@ -43,13 +71,12 @@ function tagChipsHtml(character) {
 }
 
 export function renderCharacterCard(character, chatCount, handlers) {
-    const ctx = getContext();
     const card = document.createElement("div");
     card.className = "stlp-char-card";
     card.title = character.name;
     card.innerHTML = `
         <div class="stlp-char-art">
-            <img src="${ctx.getThumbnailUrl("avatar", character.avatar)}" alt="" loading="lazy"
+            <img src="${getFullAvatarUrl(character.avatar)}" alt="" loading="lazy"
                  onerror="this.style.visibility='hidden'" />
             <div class="stlp-char-art-fade"></div>
             <span class="stlp-char-ribbon">${chatCount} chat${chatCount === 1 ? "" : "s"}</span>
@@ -74,6 +101,7 @@ export function renderCharacterCard(character, chatCount, handlers) {
     card.addEventListener("click", () => handlers.onOpen(character));
 
     // Token count of the description — local tokenizer, fire and forget
+    const ctx = getContext();
     const tokensLabel = card.querySelector(".stlp-char-tokens");
     if (typeof ctx.getTokenCountAsync === "function") {
         ctx.getTokenCountAsync(String(character.description || ""))

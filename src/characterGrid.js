@@ -7,7 +7,7 @@ import { saveSettingsDebounced } from "../../../../../script.js";
 import { extensionName } from "./config.js";
 import { ui } from "./state.js";
 import { getChatData, waitForCharacters } from "./chatData.js";
-import { renderCharacterCard, toggleFavorite } from "./characterCards.js";
+import { renderCharacterCard, toggleFavorite, preloadCharacterAvatars } from "./characterCards.js";
 import { getAllTags, isTagExcluded, toggleTagExclusion, isCharacterExcluded } from "./tagFilter.js";
 import { renderMyChats } from "./myChats.js";
 import { openEntry } from "./chatActions.js";
@@ -86,6 +86,7 @@ function renderGrid(container) {
         `${list.length} character${list.length === 1 ? "" : "s"}`;
 
     const shown = list.slice(0, gridState.shown);
+    preloadCharacterAvatars(shown);
     for (const character of shown) {
         gridEl.appendChild(renderCharacterCard(character, gridData.counts.get(character.avatar) || 0, {
             onFavoriteToggle: async (c) => {
