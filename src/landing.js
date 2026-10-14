@@ -11,6 +11,7 @@ import { renderCharacterGrid, onGridSearchChange } from "./characterGrid.js";
 import { closeCharacterDetails } from "./characterDetails.js";
 import { closeSettingsPanel } from "./settingsPanel.js";
 import { showSettingsPanel } from "./settingsPanel.js";
+import { openForgeStudio, probeForge } from "./forge.js";
 
 function getStBackground() {
     for (const id of ["bg1", "bg2"]) {
