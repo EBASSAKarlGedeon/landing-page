@@ -34,9 +34,11 @@ export async function renderMyChats(container) {
 
     container.innerHTML = "";
     const shown = visible.slice(0, limit);
-    for (const entry of shown) {
-        container.appendChild(renderChatCard(entry));
-    }
+    shown.forEach((entry, i) => {
+        const card = renderChatCard(entry);
+        card.style.setProperty("--i", Math.min(i, 12));
+        container.appendChild(card);
+    });
     if (visible.length > limit) {
         const more = document.createElement("button");
         more.className = "stlp-chat-more";

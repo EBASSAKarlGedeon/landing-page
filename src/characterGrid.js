@@ -11,6 +11,7 @@ import { renderCharacterCard, toggleFavorite, preloadCharacterAvatars } from "./
 import { getAllTags, isTagExcluded, toggleTagExclusion, isCharacterExcluded } from "./tagFilter.js";
 import { renderMyChats } from "./myChats.js";
 import { showCharacterDetails } from "./characterDetails.js";
+import { renderHero } from "./hero.js";
 import { escapeHtml, parseTimestamp } from "./helpers.js";
 
 function currentSettings() { return extension_settings[extensionName]; }
@@ -99,6 +100,9 @@ function renderGrid(container) {
         }));
     }
 
+    // Stagger index for the entrance animation
+    gridEl.querySelectorAll(".stlp-char-card").forEach((c, i) => c.style.setProperty("--i", Math.min(i, 12)));
+
     if (list.length === 0) {
         gridEl.innerHTML = `<div class="stlp-placeholder">No characters match your filters.</div>`;
     } else if (list.length > shown.length) {
@@ -132,6 +136,7 @@ function renderGrid(container) {
             renderGrid(container);
             // Privacy rule: My Chats must obey the tag filter too
             renderMyChats(ui.landingRoot?.querySelector("#stlp_my_chats"));
+            renderHero(ui.landingRoot?.querySelector("#stlp_hero"));
         });
     });
 }

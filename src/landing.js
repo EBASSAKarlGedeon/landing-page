@@ -12,17 +12,8 @@ import { closeCharacterDetails } from "./characterDetails.js";
 import { closeSettingsPanel } from "./settingsPanel.js";
 import { showSettingsPanel } from "./settingsPanel.js";
 import { openForgeStudio, probeForge } from "./forge.js";
-
-function getStBackground() {
-    for (const id of ["bg1", "bg2"]) {
-        const el = document.getElementById(id);
-        if (el) {
-            const img = getComputedStyle(el).backgroundImage;
-            if (img && img !== "none") return img;
-        }
-    }
-    return null;
-}
+import { applyAppearance } from "./appearance.js";
+import { renderHero } from "./hero.js";
 
 // ---------- ST top bar toggle ----------
 
@@ -66,8 +57,16 @@ function buildLanding() {
     el.id = "landing_page_root";
     el.innerHTML = `
         <div class="stlp-bg-overlay"></div>
+        <div class="stlp-ambient" aria-hidden="true">
+            <span class="stlp-orb stlp-orb-1"></span>
+            <span class="stlp-orb stlp-orb-2"></span>
+            <span class="stlp-orb stlp-orb-3"></span>
+        </div>
         <div class="stlp-page">
             <header class="stlp-topbar">
+                <div class="stlp-brand" title="Landing Page">
+                    <span class="stlp-brand-mark"></span>
+                </div>
                 <div class="stlp-search-wrap">
                     <svg class="stlp-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <input id="stlp_search" type="text" placeholder="Search characters... (Ctrl+K)" autocomplete="off" />
@@ -88,12 +87,19 @@ function buildLanding() {
                 </div>
             </header>
             <main class="stlp-content">
-                <section class="stlp-section">
-                    <h2 class="stlp-section-title">My Chats</h2>
+                <section id="stlp_hero" class="stlp-section stlp-hero"></section>
+                <section class="stlp-section stlp-section-chats">
+                    <h2 class="stlp-section-title">
+                        <span class="stlp-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                        My Chats
+                    </h2>
                     <div id="stlp_my_chats" class="stlp-chat-list"></div>
                 </section>
-                <section class="stlp-section">
-                    <h2 class="stlp-section-title">Characters</h2>
+                <section class="stlp-section stlp-section-chars">
+                    <h2 class="stlp-section-title">
+                        <span class="stlp-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        Characters
+                    </h2>
                     <div id="stlp_characters"></div>
                 </section>
             </main>
@@ -125,13 +131,10 @@ export function showLanding() {
     ui.landingRoot = buildLanding();
     document.body.appendChild(ui.landingRoot);
 
-    const bg = getStBackground();
-    if (bg) {
-        ui.landingRoot.style.backgroundImage = bg;
-    }
-
+    applyAppearance(ui.landingRoot); // theme vars, background, custom CSS
     applyStBarState(); // hides or shows #sheld + offsets per saved setting
 
+    renderHero(ui.landingRoot.querySelector("#stlp_hero"));
     const chatsContainer = ui.landingRoot.querySelector("#stlp_my_chats");
     renderMyChats(chatsContainer);
     renderCharacterGrid(ui.landingRoot.querySelector("#stlp_characters"));
