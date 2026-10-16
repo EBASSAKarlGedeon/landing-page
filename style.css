@@ -1941,3 +1941,38 @@
         flex-wrap: wrap;
     }
 }
+
+/* ============ Firefox/Zen rendering workaround ============
+   Gecko's backdrop-filter renders artifacts when the content behind
+   the glass animates (our ambient orbs over a fullscreen photo).
+   Chrome renders this fine, so only Gecko builds lose the blur;
+   surfaces firm up so they still read as solid without it. */
+@supports (-moz-appearance: none) {
+    #landing_page_root .stlp-topbar,
+    #landing_page_root .stlp-hero,
+    #landing_page_root .stlp-chat-card,
+    #landing_page_root .stlp-char-card,
+    #landing_page_root .stlp-char-ribbon,
+    #landing_page_root .stlp-char-fav,
+    #landing_page_root .stlp-modal-overlay {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    /* Without blur the translucent surfaces would smear the photo — firm them */
+    #landing_page_root.stlp-style-glass {
+        --stlp-card-bg: color-mix(in srgb, var(--stlp-surface-2) 90%, transparent);
+        --stlp-card-blur: 0px;
+    }
+
+    #landing_page_root .stlp-topbar {
+        background: color-mix(in srgb, var(--stlp-bg) 88%, transparent);
+    }
+
+    #landing_page_root .stlp-hero {
+        background:
+            radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--stlp-accent) 20%, transparent), transparent 55%),
+            radial-gradient(100% 140% at 100% 100%, color-mix(in srgb, var(--stlp-accent2) 16%, transparent), transparent 55%),
+            color-mix(in srgb, var(--stlp-bg) 85%, transparent);
+    }
+}
