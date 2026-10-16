@@ -159,37 +159,43 @@
     pointer-events: none;
 }
 
+/* Soft edge is baked into the gradient — no filter: blur(), so the GPU
+   never re-rasterizes a giant blur while the orbs drift. Transform-only
+   animation = fully composited = no repaints behind the glass surfaces. */
 #landing_page_root .stlp-orb {
     position: absolute;
-    width: 42vmax;
-    height: 42vmax;
+    width: 70vmax;
+    height: 70vmax;
     border-radius: 50%;
-    filter: blur(90px);
-    opacity: 0.16;
+    background: radial-gradient(circle,
+        color-mix(in srgb, var(--orb-c, var(--stlp-accent)) 55%, transparent) 0%,
+        color-mix(in srgb, var(--orb-c, var(--stlp-accent)) 22%, transparent) 38%,
+        transparent 68%);
+    opacity: 0.35;
     will-change: transform;
 }
 
 #landing_page_root .stlp-orb-1 {
-    top: -18vmax;
-    left: -10vmax;
-    background: var(--stlp-accent);
+    top: -30vmax;
+    left: -18vmax;
+    --orb-c: var(--stlp-accent);
     animation: stlp-drift-1 26s ease-in-out infinite alternate;
 }
 
 #landing_page_root .stlp-orb-2 {
-    top: 10vmax;
-    right: -16vmax;
-    background: var(--stlp-accent2);
+    top: 6vmax;
+    right: -24vmax;
+    --orb-c: var(--stlp-accent2);
     animation: stlp-drift-2 32s ease-in-out infinite alternate;
 }
 
 #landing_page_root .stlp-orb-3 {
-    bottom: -24vmax;
+    bottom: -34vmax;
     left: 30%;
-    width: 34vmax;
-    height: 34vmax;
-    opacity: 0.1;
-    background: var(--stlp-accent);
+    width: 56vmax;
+    height: 56vmax;
+    --orb-c: var(--stlp-accent);
+    opacity: 0.22;
     animation: stlp-drift-1 38s ease-in-out infinite alternate-reverse;
 }
 
@@ -504,10 +510,8 @@
     font-weight: 800;
     line-height: 1.15;
     letter-spacing: -0.02em;
-    background: linear-gradient(100deg, var(--stlp-text) 30%, var(--stlp-accent-hover));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--stlp-text);
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
 }
 
 #landing_page_root .stlp-hero-sub {
