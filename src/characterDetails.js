@@ -195,19 +195,23 @@ export async function showCharacterDetails(character) {
         }
     } catch { /* resume stays hidden */ }
 
-    // Start New Chat — verified sequence from ST's welcome screen:
-    // selectCharacterById(id) then doNewChat({ deleteCurrentChat: false })
+    // Start New Chat. ST auto-creates the first chat when selecting a character
+    // with no chats, so doNewChat is only needed when chats already exist.
     ui.characterDetailsRoot.querySelector(".stlp-details-newchat").addEventListener("click", async () => {
         try {
             const ctx = getContext();
             const scriptModule = await import("../../../../../script.js");
             const characterId = ctx.characters.findIndex(c => c.avatar === character.avatar);
             if (characterId === -1) throw new Error("Character not found");
+            const hadChats = (await getChatData().catch(() => []))
+                .some(e => e.character?.avatar === character.avatar);
             await ctx.selectCharacterById(characterId);
-            if (typeof scriptModule.doNewChat !== "function") {
-                throw new Error("doNewChat is not exported in this ST version");
+            if (hadChats) {
+                if (typeof scriptModule.doNewChat !== "function") {
+                    throw new Error("doNewChat is not exported in this ST version");
+                }
+                await scriptModule.doNewChat({ deleteCurrentChat: false });
             }
-            await scriptModule.doNewChat({ deleteCurrentChat: false });
             scrollToLastMessage();
         } catch (err) {
             console.error(`[${extensionName}] Failed to start new chat:`, err);
