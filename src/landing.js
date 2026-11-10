@@ -33,13 +33,18 @@ export function applyStBarState() {
     if (show) {
         $("#sheld").show();
         ui.landingRoot.classList.add("stlp-pinned");   // ← add
-        ui.landingRoot.style.top = `${measureStBarHeight()}px`;
+        const barH = measureStBarHeight();
+        ui.landingRoot.style.top = `${barH}px`;
+        // Height is set explicitly (see style.css) — shrink it to match the
+        // offset so the landing ends flush with the bottom of the viewport.
+        ui.landingRoot.style.height = `calc(100dvh - ${barH}px)`;
         btn?.classList.add("active");
         btn?.setAttribute("title", "Hide SillyTavern bar");
     } else {
         $("#sheld").hide();
         ui.landingRoot.classList.remove("stlp-pinned"); // ← add
         ui.landingRoot.style.top = "";
+        ui.landingRoot.style.height = "";
         btn?.classList.remove("active");
         btn?.setAttribute("title", "Show SillyTavern bar");
     }

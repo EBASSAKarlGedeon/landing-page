@@ -44,7 +44,17 @@
     --stlp-card-blur: var(--stlp-blur);
 
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    /* Explicit viewport size instead of `inset: 0`. A transform on <html>
+       (ST applies one at narrow widths) turns any fixed-position ancestor
+       into the containing block, so inset:0 then measures <html> (height
+       0) and the whole landing collapses. dvh with vh fallback keeps us
+       sized to the real viewport no matter what ancestors do. */
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+    width: 100dvw;
     z-index: 10000;
     background-color: var(--stlp-bg);
     background-size: cover;
